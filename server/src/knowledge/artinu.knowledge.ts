@@ -226,9 +226,18 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
     id: 'locations',
     title: 'Where ARTINU works',
     section: 'spaces',
-    keywords: ['where', 'where do you work', 'which cities', 'located', 'location', 'city', 'cities', 'bengaluru', 'bangalore', 'chennai', 'hyderabad', 'mysuru', 'pune', 'area', 'serve', 'based'],
+    /*
+      The other cities are still keywords, and deliberately so.
+
+      They are not a claim that ARTINU works there. They are how somebody asks
+      whether it does. Dropping them would leave "do you work in Chennai?"
+      matching nothing, and the visitor would get the phone number instead of
+      the answer, which is a plain no. A question naming any of these should
+      reach this chunk and be told Bengaluru only.
+    */
+    keywords: ['where', 'where do you work', 'which cities', 'outside bengaluru', 'located', 'location', 'city', 'cities', 'bengaluru', 'bangalore', 'chennai', 'hyderabad', 'mysuru', 'mysore', 'pune', 'mumbai', 'delhi', 'kolkata', 'goa', 'kochi', 'coimbatore', 'hosur', 'area', 'serve', 'based'],
     content:
-      "Bengaluru is where the crew, the print lab and the framers are, so installation and rotation there are entirely in-house and fastest. ARTINU also installs in Mysuru, Chennai, Hyderabad and Pune through partner crews. A first order in those cities takes longer, about three weeks rather than two. Anywhere else, describe the space and the team will be straight with you about whether they can serve it properly yet.",
+      "Bengaluru is the only city ARTINU works in. The crew, the print lab and the framers are all here, which is why the survey, the install and every rotation after it are done in-house by the same people. If your space is somewhere else, describe it to the team anyway and they will be straight with you about whether they can serve it properly yet.",
   },
   {
     id: 'space-types',

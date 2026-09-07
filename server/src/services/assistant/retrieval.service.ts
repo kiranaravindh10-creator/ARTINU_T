@@ -74,6 +74,19 @@ const SYNONYMS: Record<string, string[]> = {
   home: ['house', 'apartment', 'residential', 'decor'],
   start: ['begin', 'process', 'started', 'first'],
   work: ['works', 'process', 'steps'],
+  /*
+    The verbs people use to ask "is my city on your list".
+
+    A question naming a city already matches the locations chunk on the city
+    alone, but one word is not enough to answer on, and "do you cover Mysuru"
+    was getting the phone number instead of a plain no. These put the verb on
+    the same chunk as the city, so the pair carries the question.
+  */
+  cover: ['serve', 'area', 'location', 'city'],
+  serve: ['cover', 'area', 'location', 'city'],
+  deliver: ['serve', 'area', 'install', 'delivery'],
+  operate: ['work', 'serve', 'area'],
+  available: ['serve', 'area', 'location'],
 };
 
 /**

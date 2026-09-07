@@ -356,7 +356,7 @@ const OWNERS: OwnerSeed[] = [
       {
         name: 'Roastery Coffee House',
         type: 'cafe',
-        city: 'Hyderabad',
+        city: 'Bengaluru',
         theme: 'Airy colonial with high ceilings',
         cuisine: 'Coffee and bakes',
         wallColor: 'Cream',
@@ -375,7 +375,7 @@ const OWNERS: OwnerSeed[] = [
       {
         name: 'Lalit Boutique - Lobby',
         type: 'hotel',
-        city: 'Delhi',
+        city: 'Bengaluru',
         theme: 'Contemporary luxury, brass and stone',
         wallColor: 'Warm grey',
         lighting: 'Controlled gallery lighting',
@@ -391,9 +391,9 @@ const OWNERS: OwnerSeed[] = [
     name: 'Samar Qureshi',
     spaces: [
       {
-        name: 'Workbay Home Decor - Powai',
+        name: 'Workbay Home Decor - Indiranagar',
         type: 'home_decor',
-        city: 'Mumbai',
+        city: 'Bengaluru',
         theme: 'Clean scandinavian, pale oak',
         wallColor: 'White',
         lighting: 'Even LED, daylight on one side',
@@ -402,9 +402,9 @@ const OWNERS: OwnerSeed[] = [
         verified: true,
       },
       {
-        name: 'Workbay Home Decor - Baner',
+        name: 'Workbay Home Decor - Whitefield',
         type: 'home_decor',
-        city: 'Pune',
+        city: 'Bengaluru',
         theme: 'Concrete and green',
         wallColor: 'Light grey',
         lighting: 'Bright, north facing',
@@ -439,7 +439,7 @@ const OWNERS: OwnerSeed[] = [
       {
         name: 'Northlight Studios',
         type: 'office',
-        city: 'Mumbai',
+        city: 'Bengaluru',
         theme: 'Creative agency loft',
         wallColor: 'Exposed brick and white',
         lighting: 'Skylights, very bright at midday',
@@ -739,10 +739,11 @@ function buildPeople() {
         wallColor: space.wallColor,
         lighting: space.lighting,
         addressLine1: `${between(1, 90)} ${pick(['1st Main', '4th Cross', 'MG Road', 'Hill Road', 'Church Street'])}`,
-        addressLine2: pick(['Koramangala', 'Indiranagar', 'Bandra West', 'Banjara Hills', 'Calangute']),
+        addressLine2: pick(['Koramangala', 'Indiranagar', 'Jayanagar', 'Whitefield', 'Malleshwaram']),
         city: space.city,
-        state: pick(['Karnataka', 'Maharashtra', 'Telangana', 'Delhi', 'Goa']),
-        pin: String(between(110001, 560103)).slice(0, 6),
+        // Every space ARTINU installs in is in Bengaluru, so there is one state.
+        state: 'Karnataka',
+        pin: String(between(560001, 560103)),
         contactName: owner.name,
         contactPhone: `+91 90${between(100, 999)}${between(10000, 99999)}`,
         contactEmail: owner.email,
@@ -1256,7 +1257,7 @@ export async function seedAll(
     email: `enquiry${index + 1}@example.com`,
     phone: `+91 98${between(100, 999)}${between(10000, 99999)}`,
     spaceType: pick(['cafe', 'restaurant', 'hotel', 'office', 'home_decor', 'clinic'] as const),
-    location: pick(['Bengaluru', 'Mumbai', 'Pune', 'Delhi', 'Goa']),
+    location: pick(['Bengaluru', 'Koramangala, Bengaluru', 'Indiranagar, Bengaluru', 'Whitefield, Bengaluru']),
     message:
       'We are opening in about six weeks and the walls are completely bare. Would like to understand how the rotation works and what it costs.',
     mode: (index % 2 === 0 ? 'video' : 'in_person') as 'video' | 'in_person',

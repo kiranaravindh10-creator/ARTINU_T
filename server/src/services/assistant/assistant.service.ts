@@ -15,7 +15,7 @@ import { recordQuestion } from '@/services/assistant/questions.service';
  *
  * A model given retrieved context still writes the sentence. You constrain it
  * with a prompt, you fence the context, you set a temperature, and you are
- * still trusting it not to smooth "we install in Mysuru through partner crews"
+ * still trusting it not to smooth "Bengaluru is the only city ARTINU works in"
  * into "we install across South India". Here the answer IS ARTINU's sentence.
  * It cannot become a claim nobody approved, because nothing rewrites it.
  *

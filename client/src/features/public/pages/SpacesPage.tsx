@@ -479,7 +479,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'Do you work outside Bengaluru?',
     answer:
-      'Bengaluru is where our crew, our print lab and our framers are, so installation and rotation there are entirely in-house and that is where we are fastest. We also install in Mysuru, Chennai, Hyderabad and Pune through partner crews we have trained and work alongside, with a longer lead time on the first order - about three weeks rather than two. Anywhere else, tell us about the space and we will be straight with you about whether we can serve it properly yet rather than take the order and hope.',
+      'No. Bengaluru is the only city we work in. Our crew, our print lab and our framers are all here, which is why the survey, the install and every rotation after it are done in-house by the same people rather than handed to a contractor we have never met. If your space is somewhere else, tell us about it anyway and we will be straight with you about whether we can serve it properly yet rather than take the order and hope.',
   },
   {
     question: 'How long is the commitment?',

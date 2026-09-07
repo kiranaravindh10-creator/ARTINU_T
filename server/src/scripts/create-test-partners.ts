@@ -70,7 +70,7 @@ const PARTNERS: PartnerSeed[] = [
     space: {
       name: 'Adyar Anandha Bhavan',
       type: 'restaurant',
-      city: 'Chennai',
+      city: 'Bengaluru',
       addressLine1: 'Test record - not a real address',
       theme: 'Traditional South Indian dining, warm wood and brass',
       cuisine: 'South Indian',
