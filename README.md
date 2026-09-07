@@ -377,118 +377,10 @@ Everything in `.env.example` is optional. Set only what you have.
 | `MEMORY_PERSIST`                                                                                                                                                                   | `true`      | Persists the dev store to `server/.data/db.json` across restarts                       |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`                                                                                                                                        | unset       | Google OAuth for photographer sign-in                                                  |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` / `GOOGLE_DRIVE_ROOT_FOLDER_ID`                                                                                                                       | unset       | Google Drive mirror sync (deprecated, kept for migration)                              |
-| `ANTHROPIC_API_KEY`                                                                                                                                                                | unset       | **Server-only secret.** Image moderation only — the site assistant needs no key        |
-| `ANTHROPIC_MODEL`                                                                                                                                                                  | `claude-opus-5` | Model the assistant and image moderation both use                                  |
 
 Requesting a driver without its credentials logs a warning and falls back, so
 the app always starts. The Console's System Health page shows which drivers are
 actually in use.
-
----
-
-## Needs you — the Console's action layer
-
-The Console overview answers "how is the business doing": revenue, orders,
-trends, frames on walls. It does not answer **"what is waiting on me"**, and
-that turned out to be the expensive question — two customers submitted payment
-references on 29 August and were still unverified eight days later. The money
-had arrived, the orders could not advance, no invoice had ever been issued, and
-every chart on the screen looked healthy. A trend line cannot show an absence.
-
-`Needs you` sits above the numbers and lists only things where a person has to
-act and nothing else will move them along:
-
-- payments waiting to be verified, with the amount and how long
-- artist applications with nobody's decision on them
-- campaigns still switched on past their end date
-- **artists who registered over a week ago and have never uploaded** — the
-  problem this codebase names most often, and one that is invisible on a
-  dashboard because nothing happened; counting the absence is the only way
-
-Run against live data it reported two urgent payments (₹2,214, oldest 8 days)
-and twelve silent artists (oldest 20 days). Everything is derived from records
-that already exist — no new table, no new column. It disappears entirely when
-nothing is stuck, so it never becomes furniture.
-
-Each row links to the screen that deals with it, and those screens keep their
-own authorisation: showing a CEO that a payment is stuck is not the same as
-letting it be verified from here, and nothing on this panel does anything.
-
----
-
-## What visitors asked
-
-The assistant refuses any question its knowledge base does not cover. Every one
-of those refusals is somebody who wanted something the website does not explain
-— and until now that signal went nowhere.
-
-The Console overview now shows the questions visitors asked and, more usefully,
-**the ones that went unanswered**. That second list is a to-do list for the
-site, written by the people trying to buy from it. In testing, "Do you do
-weddings?" surfaced immediately as the top gap.
-
-Stored in `ui_content` (no migration) as the question text, whether it was
-answered, and the day — with no IP, no user id, no session and no cookie.
-Nothing links two questions to the same person, because aggregate counts answer
-"what do visitors not understand" and that is the only question worth asking of
-this data. Questions are buffered and flushed at most every thirty seconds, so
-a burst costs one write and analytics never sits between a visitor and their
-answer.
-
----
-
-## The site assistant
-
-A small help desk on the public site — "Ask ARTINU", bottom right. It answers
-what ARTINU is, how rotation works, what it costs, where it operates and how
-photographers join, and it refuses everything else.
-
-**There is no language model and no API key.** Every answer is a paragraph from
-`server/src/knowledge/artinu.knowledge.ts`, returned as written. Nothing
-rephrases it, so it cannot become a claim nobody approved. Verified: across
-twenty questions, twenty answers matched the knowledge base verbatim and none
-were generated.
-
-The knowledge is transcribed from the FAQ and steps already published on the
-Spaces page and the Join page. Anything numeric is not transcribed at all — the
-rates, the phone number, the office hours and whether GST applies are read live
-from `RENTAL_TARIFF`, `PRICING` and `CONTACT`, the same constants the checkout
-prices from. Change a rate there and the assistant quotes the new one on the
-next deploy.
-
-**How a question is answered**
-
-```
-question → retrieve (scored term overlap over ~16 chunks)
-         → below the relevance floor?  →  "I don't have that" + real contact details
-         → otherwise: return the matching paragraph(s) + hand-written follow-ups
-```
-
-Retrieval is lexical — synonyms ("bangalore" → "bengaluru", "how much" → "rate")
-and light stemming, so "where are you located" reaches a chunk keyworded
-"location". Sixteen short chunks do not justify a vector store.
-
-**Why it cannot make things up**
-
-- Nothing relevant retrieved means there is no text to return, so the only
-  option left is to say so and give the real phone number. The defence is
-  structural, not a prompt asking a model to behave.
-- Answers are corpus text, verbatim. There is no step that could rewrite
-  "we install in Mysuru through partner crews" into something broader.
-- Follow-up suggestions are hand-written per chunk, so every one of them leads
-  to an answer that exists. No dead ends.
-
-**Updating what it knows** — add a chunk to `artinu.knowledge.ts` with a title,
-a section, keywords a visitor would type, and body text written the way you
-would say it out loud. That text *is* the answer, so what you write there is
-exactly what a visitor reads. Add follow-ups for it in `FOLLOW_UPS` in the same
-file. If ARTINU has not published something, leave it out: "I don't have that
-yet" is a correct answer and a plausible invention is not.
-
-**If ARTINU ever wants phrasing that adapts to how a question was asked**,
-`compose()` in `services/assistant/assistant.service.ts` is the seam — a model
-would slot in there without touching retrieval, the route or the UI. It would
-need an API key and a bill, and would trade the verbatim guarantee for fluency.
 
 ---
 
@@ -633,9 +525,4 @@ Other properties worth knowing:
 | Firestore Realtime       | `server/src/services/firebase.ts` (Admin), `client/src/hooks/useContentSync.ts` (Client)                                                                                                              |
 | Drive→Firebase Migration | `server/src/scripts/migrate-drive-to-firebase.ts`                                                                                                                                                     |
 
-#   A R T I N U - V 1 
- 
- 
-#   A R T I N U _ W e b s i t e _ D e v e l o p m e n t 
- 
- 
+#
