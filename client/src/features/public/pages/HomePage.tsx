@@ -151,6 +151,50 @@ function PhotographerShowcaseHero() {
     return () => added.forEach((link) => link.remove());
   }, [heroSlides]);
 
+  /*
+    The shape of each photograph, measured once.
+
+    The layout below has to know whether a photograph is portrait before it can
+    decide how to present it, and nothing in `hero_slides` records that — the
+    row has a url and a credit, not a width. These are already being preloaded
+    by the effect above, so reading `naturalWidth` off the same fetch costs
+    nothing extra.
+
+    Until a measurement arrives a slide is treated as landscape, which renders
+    the single full-frame image — the safe default, and identical to what a
+    landscape photograph gets anyway.
+  */
+  const [ratios, setRatios] = React.useState<Record<string, number>>({});
+
+  React.useEffect(() => {
+    if (!heroSlides || heroSlides.length === 0) return;
+    let live = true;
+
+    for (const slide of heroSlides) {
+      if (ratios[slide.id]) continue;
+      const probe = new Image();
+      probe.onload = () => {
+        if (!live || !probe.naturalWidth || !probe.naturalHeight) return;
+        setRatios((current) =>
+          current[slide.id]
+            ? current
+            : { ...current, [slide.id]: probe.naturalWidth / probe.naturalHeight },
+        );
+      };
+      probe.src = slide.imageUrl;
+    }
+
+    return () => {
+      live = false;
+    };
+    // `ratios` is deliberately absent: including it would re-run the effect on
+    // every measurement and start the whole set again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heroSlides]);
+
+  /** Taller than it is wide, with a little tolerance so 1:1 counts as neither. */
+  const isPortrait = (id: string) => (ratios[id] ?? 1.5) < 0.95;
+
   const advance = React.useCallback(
     (step: number) => {
       if (total === 0) return;
@@ -284,6 +328,42 @@ function PhotographerShowcaseHero() {
   */
   const showThumbnails = settings.showThumbnails && !single;
 
+  /*
+    A portrait is hung with company; anything else runs the full frame.
+
+    Needs three slides to be a wall rather than a gap with something in it, so
+    with one or two the portrait simply gets the frame to itself.
+  */
+  const portraitLayout = isPortrait(currentSlide.id) && total >= 3;
+
+  /**
+   * The feature and its neighbours, in the order they hang: [left, feature, right].
+   *
+   * Prefers portraits either side so the wall reads as one set — a landscape
+   * dropped in at 60% height would sit as a wide sliver between two tall ones.
+   * Falls back to whatever is adjacent when there are not enough portraits,
+   * because a wall with company is still better than one without.
+   *
+   * NOT a useMemo. Everything from `currentSlide` down runs after the early
+   * return for an empty carousel above, so a hook here would be called on some
+   * renders and not others — React counts hooks by position and would throw the
+   * moment the slides arrived. It is three array operations over at most eight
+   * items; memoising it would buy nothing and cost correctness.
+   */
+  const companions = (() => {
+    if (!portraitLayout) return [currentSlide];
+
+    const others = heroSlides.filter((_, i) => i !== index);
+    const portraits = others.filter((slide) => isPortrait(slide.id));
+    const pool = portraits.length >= 2 ? portraits : others;
+
+    // Walk forward from the current slide so the wall changes as it advances
+    // rather than showing the same two neighbours every time.
+    const pick = (offset: number) => pool[(index + offset) % pool.length];
+    return [pick(0), currentSlide, pick(1)];
+  })();
+
+
   // Sliding is a motion effect, so a reader who asked for less motion gets the
   // plain swap. Ken Burns goes for the same reason.
   const sliding = settings.transition === 'slide' && !reduced;
@@ -311,36 +391,36 @@ function PhotographerShowcaseHero() {
           className="absolute inset-0 origin-center"
         >
           {/*
-            ── THE PHOTOGRAPH IS NO LONGER CROPPED TO FIT THE FRAME ──────────
+            ── THE PHOTOGRAPH IS NOT CROPPED, AND THE FRAME IS NOT EMPTY ─────
 
             This layer used to be one `object-cover` image with a Ken Burns
-            scale on top of it, which cut the artwork twice over. A portrait
-            photograph in a wide desktop hero lost its top and bottom; on a
-            phone, where this frame is a tall 100dvh, a landscape photograph
-            lost its sides. Whatever the photographer framed, the container
-            decided what survived — and the 1.06 push-in then took a little
-            more from every edge.
+            scale on top, which cut the artwork twice over. Measured against the
+            live slides, all eight were losing something and five were losing
+            more than 60%: a portrait in this wide desktop frame lost its top
+            and bottom, and on a phone — where the frame is a tall 100dvh — a
+            landscape lost its sides.
 
-            It is now two layers of the SAME image:
+            Contain alone fixed the cropping and created a new problem: a 3:4
+            portrait in a 16:9 frame leaves two thirds of the width doing
+            nothing, which reads as a mistake however tastefully it is filled.
 
-              · an ambient field behind, cover-fitted and blurred far past
-                legibility, so the frame is filled with light drawn from the
-                photograph itself rather than a bar of black. It is scaled up
-                because a blur samples past its own edges and would otherwise
-                show a soft border.
+            So the presentation follows the artwork:
 
-              · the photograph in front, `object-contain`, complete. Every
-                edge the photographer included is on screen, at any aspect
-                ratio, on any viewport.
+              · a landscape or square photograph runs the full frame, contained,
+                because at those ratios it very nearly fills it anyway
 
-            When a photograph already matches the frame — a landscape shot on a
-            desktop — contain and cover resolve to the same pixels and the
-            ambient layer is completely hidden behind it. Nothing changes for
-            those, which is most of them. It only does work where the old
-            behaviour was destroying something.
+              · a portrait is hung as a wall — the current photograph at
+                feature size with its neighbours either side, smaller and set
+                back. The width that was empty now holds more of the
+                collection, which is what this carousel is for.
 
-            Both layers take the same `src`, so the browser selects one srcset
-            candidate and downloads it once.
+            The flanks are CSS-hidden below `lg`, so a phone — where the frame
+            is already portrait and a single image fills it — gets exactly the
+            single contained image and none of this.
+
+            Behind everything, an ambient field: the same photograph, blurred
+            past legibility and dimmed, so the surround is light drawn out of
+            the work rather than a slab of colour.
           */}
           <motion.div
             initial={{ scale: 1 }}
@@ -355,43 +435,90 @@ function PhotographerShowcaseHero() {
               hero
               priority={isFirstSlide}
               blurPlaceholder={heroBlurPlaceholder}
+              /*
+                `bg-ink`, not the default cream. Photo paints its tone across
+                the whole box, and a light one flashed as a pale slab before
+                the blur arrived.
+              */
+              tone="bg-ink"
               className="absolute inset-0 h-full w-full"
               /*
                 Scaled to 115% so the blur's soft edge falls outside the frame,
-                and dimmed so it reads as light in the room rather than as a
-                second copy of the picture competing with the first.
+                and dimmed so it reads as light in the room rather than a second
+                copy of the picture competing with the first.
               */
               imgClassName="h-full w-full scale-[1.15] object-cover object-center blur-[72px] brightness-[0.45] saturate-[1.15]"
             />
           </motion.div>
 
           {/*
-            The photograph itself. Deliberately outside the Ken Burns wrapper:
-            the drift is a lighting effect on the field behind, and applying it
-            here would scale a contained image past the frame edge and start
-            cropping again — the exact thing this change removes.
+            The photographs. Outside the Ken Burns wrapper on purpose: the drift
+            belongs to the field behind, and scaling a contained image would
+            push it past the frame edge and start cropping again.
           */}
-          <Photo
-            src={heroSrc}
-            alt={
-              currentSlide.photographerName
-                ? `Photograph by ${currentSlide.photographerName}`
-                : 'A photograph from the ARTINU collection'
-            }
-            hero
-            priority={isFirstSlide}
-            blurPlaceholder={heroBlurPlaceholder}
-            className="absolute inset-0 h-full w-full"
-            imgClassName="h-full w-full object-contain object-center"
-            /*
-              Photo paints its blur placeholder as this element's background at
-              `cover`. Behind a contained image that means a stretched 24px
-              thumbnail filling the letterbox — brighter and coarser than the
-              ambient layer, and painted over it. The ambient layer is the
-              placeholder here, so this one is turned off.
-            */
-            style={{ backgroundImage: 'none' }}
-          />
+          <div className="absolute inset-0 flex items-center justify-center gap-4 lg:gap-7">
+            {portraitLayout
+              ? companions.map((slide, position) => {
+                  const isFeature = position === 1;
+                  return (
+                    <div
+                      key={`${slide.id}-${position}`}
+                      className={cn(
+                        'relative shrink-0',
+                        isFeature
+                          ? 'h-full w-full lg:h-[86%] lg:w-[36%]'
+                          : // Set back, and only once there is width to spare.
+                            'hidden lg:block lg:h-[60%] lg:w-[24%] lg:opacity-60',
+                      )}
+                    >
+                      <Photo
+                        src={slide.imageUrl}
+                        alt={
+                          isFeature
+                            ? currentSlide.photographerName
+                              ? `Photograph by ${currentSlide.photographerName}`
+                              : 'A photograph from the ARTINU collection'
+                            : ''
+                        }
+                        hero
+                        priority={isFirstSlide && isFeature}
+                        /*
+                          Transparent, or Photo's cream tone would paint a panel
+                          over the ambient field behind — which is exactly what
+                          made the sides of a portrait look empty.
+                        */
+                        tone="bg-transparent"
+                        className="absolute inset-0 h-full w-full"
+                        imgClassName="h-full w-full object-contain object-center"
+                        /*
+                          Photo paints its blur placeholder as this element's
+                          background at `cover`; behind a contained image that
+                          fills the letterbox with a stretched 24px thumbnail,
+                          drawn over the ambient layer. The field behind is the
+                          placeholder here.
+                        */
+                        style={{ backgroundImage: 'none' }}
+                      />
+                    </div>
+                  );
+                })
+              : (
+                  <Photo
+                    src={heroSrc}
+                    alt={
+                      currentSlide.photographerName
+                        ? `Photograph by ${currentSlide.photographerName}`
+                        : 'A photograph from the ARTINU collection'
+                    }
+                    hero
+                    priority={isFirstSlide}
+                    tone="bg-transparent"
+                    className="absolute inset-0 h-full w-full"
+                    imgClassName="h-full w-full object-contain object-center"
+                    style={{ backgroundImage: 'none' }}
+                  />
+                )}
+          </div>
         </motion.div>
       </AnimatePresence>
 
