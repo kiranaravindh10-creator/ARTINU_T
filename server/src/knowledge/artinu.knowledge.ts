@@ -97,11 +97,22 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
     id: 'what-is-artinu',
     title: 'What ARTINU is',
     section: 'about',
-    // 'do you do' was here and had to go: it matched "do you do weddings?"
-    // and "do you do portraits?", scoring them as though somebody had asked
-    // what ARTINU is. A phrase keyword has to be specific to the answer, not
-    // to the shape of a question.
-    keywords: ['what is artinu', 'about', 'who are you', 'company', 'explain', 'service', 'services', 'offer', 'provide'],
+    /*
+      Three keywords have been removed from this chunk for the same reason.
+
+      'do you do' went first: it matched "do you do weddings?" and "do you do
+      portraits?" and scored them as though somebody had asked what ARTINU is.
+      'offer' and 'provide' were the same mistake one step later. "Do you offer
+      photography courses?" matched 'offer' here and got a description of the
+      company, when ARTINU does not run courses and the honest answer is the
+      team's phone number.
+
+      All three match the SHAPE of a question rather than its subject, and the
+      subject is the only thing that says which answer is right. 'what services'
+      stays because it is a phrase, and a phrase that long is asking this
+      chunk's actual question.
+    */
+    keywords: ['what is artinu', 'what services', 'about', 'who are you', 'company', 'explain', 'service', 'services'],
     content:
       "ARTINU puts photography by local photographers on the walls of real rooms. Cafés, restaurants, hotels, offices and homes. Every photograph is printed, framed and credited to the person who took it, and the set changes on a rotation, so a room does not stay the same all year. The thinking behind it is simple. Good photography should not only live on a screen. Someone waiting for a coffee sees the work, reads the photographer's name off the wall, and the space gets something worth looking at.",
   },
