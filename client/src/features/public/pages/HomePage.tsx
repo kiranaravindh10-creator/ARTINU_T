@@ -307,12 +307,70 @@ function PhotographerShowcaseHero() {
           transition={{
             opacity: { duration: transitionSeconds, ease: 'easeInOut' },
             x: { duration: transitionSeconds, ease: EASE },
-            // The slow push-in runs for far longer than the dwell on purpose:
-            // it never arrives, so it never looks like it stopped.
-            scale: { duration: kenBurns ? 20 : 0, ease: 'linear' },
           }}
           className="absolute inset-0 origin-center"
         >
+          {/*
+            ── THE PHOTOGRAPH IS NO LONGER CROPPED TO FIT THE FRAME ──────────
+
+            This layer used to be one `object-cover` image with a Ken Burns
+            scale on top of it, which cut the artwork twice over. A portrait
+            photograph in a wide desktop hero lost its top and bottom; on a
+            phone, where this frame is a tall 100dvh, a landscape photograph
+            lost its sides. Whatever the photographer framed, the container
+            decided what survived — and the 1.06 push-in then took a little
+            more from every edge.
+
+            It is now two layers of the SAME image:
+
+              · an ambient field behind, cover-fitted and blurred far past
+                legibility, so the frame is filled with light drawn from the
+                photograph itself rather than a bar of black. It is scaled up
+                because a blur samples past its own edges and would otherwise
+                show a soft border.
+
+              · the photograph in front, `object-contain`, complete. Every
+                edge the photographer included is on screen, at any aspect
+                ratio, on any viewport.
+
+            When a photograph already matches the frame — a landscape shot on a
+            desktop — contain and cover resolve to the same pixels and the
+            ambient layer is completely hidden behind it. Nothing changes for
+            those, which is most of them. It only does work where the old
+            behaviour was destroying something.
+
+            Both layers take the same `src`, so the browser selects one srcset
+            candidate and downloads it once.
+          */}
+          <motion.div
+            initial={{ scale: 1 }}
+            animate={{ scale: kenBurns ? 1.06 : 1 }}
+            transition={{ scale: { duration: kenBurns ? 20 : 0, ease: 'linear' } }}
+            className="absolute inset-0 origin-center"
+            aria-hidden
+          >
+            <Photo
+              src={heroSrc}
+              alt=""
+              hero
+              priority={isFirstSlide}
+              blurPlaceholder={heroBlurPlaceholder}
+              className="absolute inset-0 h-full w-full"
+              /*
+                Scaled to 115% so the blur's soft edge falls outside the frame,
+                and dimmed so it reads as light in the room rather than as a
+                second copy of the picture competing with the first.
+              */
+              imgClassName="h-full w-full scale-[1.15] object-cover object-center blur-[72px] brightness-[0.45] saturate-[1.15]"
+            />
+          </motion.div>
+
+          {/*
+            The photograph itself. Deliberately outside the Ken Burns wrapper:
+            the drift is a lighting effect on the field behind, and applying it
+            here would scale a contained image past the frame edge and start
+            cropping again — the exact thing this change removes.
+          */}
           <Photo
             src={heroSrc}
             alt={
@@ -324,7 +382,15 @@ function PhotographerShowcaseHero() {
             priority={isFirstSlide}
             blurPlaceholder={heroBlurPlaceholder}
             className="absolute inset-0 h-full w-full"
-            imgClassName="h-full w-full object-cover object-center"
+            imgClassName="h-full w-full object-contain object-center"
+            /*
+              Photo paints its blur placeholder as this element's background at
+              `cover`. Behind a contained image that means a stretched 24px
+              thumbnail filling the letterbox — brighter and coarser than the
+              ambient layer, and painted over it. The ambient layer is the
+              placeholder here, so this one is turned off.
+            */
+            style={{ backgroundImage: 'none' }}
           />
         </motion.div>
       </AnimatePresence>
