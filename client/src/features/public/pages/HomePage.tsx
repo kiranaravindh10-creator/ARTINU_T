@@ -88,6 +88,21 @@ const HOME_HERO = {
 } as const;
 
 /**
+ * Film grain, as an inline SVG.
+ *
+ * The reason it exists: a heavily blurred photograph has regions with no
+ * structure left in them — a sky, a wall, a stretch of water — and a region
+ * with no structure reads as flat paint no matter what colour it is. Grain
+ * gives every one of those regions tooth, so the surround behind a photograph
+ * looks like a printed surface rather than a filled rectangle.
+ *
+ * Generated rather than fetched: it is a few hundred bytes of markup, costs no
+ * request, and `feTurbulence` is doing what a noise texture file would.
+ */
+const GRAIN =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E\")";
+
+/**
  * The homepage slideshow.
  *
  * The photographs are rows in `hero_slides`, which Console → Homepage has
@@ -428,6 +443,21 @@ function PhotographerShowcaseHero() {
             transition={{ scale: { duration: kenBurns ? 20 : 0, ease: 'linear' } }}
             className="absolute inset-0 origin-center"
             aria-hidden
+            /*
+              The 24px preview, painted on the wrapper itself.
+
+              Photo hides its own img until the file arrives, so whatever sits
+              behind it is what fills the frame for those first moments — and a
+              tone class there is a slab of flat colour, which is exactly what
+              must never appear. Putting the preview here means the surround is
+              made of the photograph from the very first frame: soft because it
+              is 24 pixels stretched over a screen, never a painted rectangle.
+            */
+            style={{
+              backgroundImage: `url(${heroBlurPlaceholder})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
           >
             <Photo
               src={heroSrc}
@@ -435,21 +465,43 @@ function PhotographerShowcaseHero() {
               hero
               priority={isFirstSlide}
               blurPlaceholder={heroBlurPlaceholder}
-              /*
-                `bg-ink`, not the default cream. Photo paints its tone across
-                the whole box, and a light one flashed as a pale slab before
-                the blur arrived.
-              */
-              tone="bg-ink"
+              // Transparent so the preview above shows through until this loads.
+              tone="bg-transparent"
               className="absolute inset-0 h-full w-full"
               /*
-                Scaled to 115% so the blur's soft edge falls outside the frame,
-                and dimmed so it reads as light in the room rather than a second
-                copy of the picture competing with the first.
+                56px rather than the 72 this started at, and lifted from 0.45 to
+                0.52. Blurred harder and darker it stopped reading as a
+                photograph and started reading as a colour — the horizon, the
+                treeline, the fall of light all dissolved. This keeps enough
+                structure that the eye recognises it as the same picture,
+                out of focus, while staying far enough back that it never
+                competes with the print in front of it.
+
+                Scaled to 115% so the blur's soft edge falls outside the frame.
               */
-              imgClassName="h-full w-full scale-[1.15] object-cover object-center blur-[72px] brightness-[0.45] saturate-[1.15]"
+              imgClassName="h-full w-full scale-[1.15] object-cover object-center blur-[56px] brightness-[0.52] saturate-[1.1]"
             />
           </motion.div>
+
+          {/*
+            Depth, then tooth.
+
+            The vignette settles the corners so the surround recedes and the
+            photograph sits forward of it. The grain gives the flat regions of a
+            blur — sky, water, a wall — a surface, which is the difference
+            between "a wall in a gallery" and "a filled rectangle". Both are
+            deliberately near the threshold of visibility; you should feel them
+            and not see them.
+          */}
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(18,16,14,0.5)_100%)]"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.14] mix-blend-overlay"
+            style={{ backgroundImage: GRAIN, backgroundRepeat: 'repeat' }}
+            aria-hidden
+          />
 
           {/*
             The photographs. Outside the Ken Burns wrapper on purpose: the drift
