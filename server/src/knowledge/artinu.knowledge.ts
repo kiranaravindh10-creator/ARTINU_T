@@ -65,7 +65,11 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
     id: 'what-is-artinu',
     title: 'What ARTINU is',
     section: 'about',
-    keywords: ['what is artinu', 'about', 'who are you', 'company', 'explain', 'service', 'services', 'offer', 'provide', 'do you do'],
+    // 'do you do' was here and had to go: it matched "do you do weddings?"
+    // and "do you do portraits?", scoring them as though somebody had asked
+    // what ARTINU is. A phrase keyword has to be specific to the answer, not
+    // to the shape of a question.
+    keywords: ['what is artinu', 'about', 'who are you', 'company', 'explain', 'service', 'services', 'offer', 'provide'],
     content:
       'ARTINU puts photography by local photographers onto the walls of real rooms — cafés, restaurants, hotels, offices and homes — printed, framed and credited to the photographer. The photographs change on a rotation, so a room does not stay the same all year. The idea is that good photography should not only live on a screen: someone waiting for a coffee sees the work, reads the photographer’s name off the wall, and the space gets something worth looking at.',
   },
@@ -161,7 +165,7 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
     id: 'ownership',
     title: 'Who owns the photographs',
     section: 'policies',
-    keywords: ['own', 'ownership', 'copyright', 'rights', 'licence', 'license', 'resell'],
+    keywords: ['own', 'ownership', 'copyright', 'rights', 'licence', 'license', 'resell', 'buy', 'purchase', 'outright', 'keep', 'sell'],
     content:
       'The photographer owns the copyright, always; it never transfers to ARTINU or to the space. The photographs inside the frames are licensed to you for display while they hang, which is why they come back at each swap. Nobody may reproduce, resell or merchandise the image beyond that display licence.',
   },

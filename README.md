@@ -386,6 +386,57 @@ actually in use.
 
 ---
 
+## Needs you — the Console's action layer
+
+The Console overview answers "how is the business doing": revenue, orders,
+trends, frames on walls. It does not answer **"what is waiting on me"**, and
+that turned out to be the expensive question — two customers submitted payment
+references on 29 August and were still unverified eight days later. The money
+had arrived, the orders could not advance, no invoice had ever been issued, and
+every chart on the screen looked healthy. A trend line cannot show an absence.
+
+`Needs you` sits above the numbers and lists only things where a person has to
+act and nothing else will move them along:
+
+- payments waiting to be verified, with the amount and how long
+- artist applications with nobody's decision on them
+- campaigns still switched on past their end date
+- **artists who registered over a week ago and have never uploaded** — the
+  problem this codebase names most often, and one that is invisible on a
+  dashboard because nothing happened; counting the absence is the only way
+
+Run against live data it reported two urgent payments (₹2,214, oldest 8 days)
+and twelve silent artists (oldest 20 days). Everything is derived from records
+that already exist — no new table, no new column. It disappears entirely when
+nothing is stuck, so it never becomes furniture.
+
+Each row links to the screen that deals with it, and those screens keep their
+own authorisation: showing a CEO that a payment is stuck is not the same as
+letting it be verified from here, and nothing on this panel does anything.
+
+---
+
+## What visitors asked
+
+The assistant refuses any question its knowledge base does not cover. Every one
+of those refusals is somebody who wanted something the website does not explain
+— and until now that signal went nowhere.
+
+The Console overview now shows the questions visitors asked and, more usefully,
+**the ones that went unanswered**. That second list is a to-do list for the
+site, written by the people trying to buy from it. In testing, "Do you do
+weddings?" surfaced immediately as the top gap.
+
+Stored in `ui_content` (no migration) as the question text, whether it was
+answered, and the day — with no IP, no user id, no session and no cookie.
+Nothing links two questions to the same person, because aggregate counts answer
+"what do visitors not understand" and that is the only question worth asking of
+this data. Questions are buffered and flushed at most every thirty seconds, so
+a burst costs one write and analytics never sits between a visitor and their
+answer.
+
+---
+
 ## The site assistant
 
 A small help desk on the public site — "Ask ARTINU", bottom right. It answers

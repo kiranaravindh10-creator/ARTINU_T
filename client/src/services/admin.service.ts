@@ -72,6 +72,28 @@ export interface SystemHealth {
 
 type Query = Record<string, string | number | boolean | undefined>;
 
+
+/** One thing that has stopped and is waiting on a person. */
+export interface AttentionItem {
+  kind: 'payment_verification' | 'artist_application' | 'expired_campaign' | 'silent_artist';
+  label: string;
+  detail: string;
+  count: number;
+  amount?: number;
+  oldestDays?: number;
+  href: string;
+  severity: 'urgent' | 'warning' | 'info';
+}
+
+export interface QuestionSummary {
+  total: number;
+  answered: number;
+  unanswered: number;
+  top: { question: string; count: number; answered: boolean }[];
+  gaps: { question: string; count: number }[];
+  since: string | null;
+}
+
 export const adminService = {
   async analytics() {
     const { data } = await api.get<ConsoleAnalytics>('/admin/analytics');
@@ -213,6 +235,20 @@ export const adminService = {
 
   async reports() {
     const { data } = await api.get<ReportBundle>('/admin/reports');
+    return data;
+  },
+
+  /** What has stopped and is waiting on a person, across the business. */
+  async attention() {
+    const { data } = await api.get<AttentionItem[]>('/admin/attention');
+    return data;
+  },
+
+  /** What visitors asked the site assistant, and what it could not answer. */
+  async assistantQuestions(days = 30) {
+    const { data } = await api.get<QuestionSummary>('/admin/assistant-questions', {
+      params: { days },
+    });
     return data;
   },
 

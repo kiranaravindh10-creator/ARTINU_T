@@ -46,6 +46,8 @@ import {
 } from '@/services/analytics.service';
 import { ensureSpaceCode, issuedPassword } from '@/services/space-code.service';
 import { sendWelcomeEmailOnce } from '@/services/welcome-email.service';
+import { attentionItems } from '@/services/attention.service';
+import { summarise as summariseQuestions } from '@/services/assistant/questions.service';
 import { recordAudit, recentAudit } from '@/services/audit.service';
 import { createOrderForSpace } from '@/services/order.service';
 import { settlePayment } from '@/services/settlement.service';
@@ -1294,6 +1296,39 @@ adminRouter.post(
  * it was worth. Deleting one that has already discounted orders leaves those
  * orders pointing at a code nobody can look up.
  */
+/**
+ * What is waiting on a person, across the whole business.
+ *
+ * Deliberately not gated on a module: it is a router — every item carries the
+ * link to the screen that deals with it, and those screens keep their own
+ * authorisation. Showing a CEO that two payments are stuck is not the same as
+ * letting them be verified from here, and nothing here does anything.
+ *
+ * Internal only, because the counts describe ARTINU's operations.
+ */
+adminRouter.get(
+  '/attention',
+  asyncHandler(async (_req, res) => {
+    res.json(await attentionItems());
+  }),
+);
+
+/**
+ * What visitors have been asking the site assistant, and what it could not
+ * answer. The second list is the useful one: it is the website's own gaps,
+ * reported by the people who hit them.
+ *
+ * Same three roles as coupons — the people who decide what the site says.
+ */
+adminRouter.get(
+  '/assistant-questions',
+  requireRole('ceo', 'manager', 'it_team'),
+  asyncHandler(async (req, res) => {
+    const days = Number(req.query.days);
+    res.json(await summariseQuestions(Number.isFinite(days) && days > 0 ? days : 30));
+  }),
+);
+
 adminRouter.get(
   '/coupons',
   requireRole('ceo', 'manager', 'it_team'),

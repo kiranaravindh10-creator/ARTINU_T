@@ -1,6 +1,7 @@
 import { CONTACT } from '@artinu/shared';
 import { FOLLOW_UPS } from '@/knowledge/artinu.knowledge';
 import { isUnanswerable, retrieve, type RetrievedChunk } from '@/services/assistant/retrieval.service';
+import { recordQuestion } from '@/services/assistant/questions.service';
 
 /**
  * THE ANSWER LAYER — AND THERE IS NO MODEL IN IT.
@@ -135,8 +136,18 @@ export async function ask(
     is to say so and hand over the real phone number.
   */
   if (isUnanswerable(chunks)) {
+    /*
+      A refusal is the most valuable thing this assistant produces.
+
+      It is a visitor who wanted something ARTINU's site does not explain, and
+      logging it turns a dead end into a to-do list for the copy. Queued, never
+      awaited — analytics must not sit between a visitor and their answer.
+    */
+    recordQuestion(question, false);
     return { answer: NO_ANSWER, suggestions: STARTERS.slice(0, 3), sources: [] };
   }
+
+  recordQuestion(question, true);
 
   const used = chunks.slice(0, 2);
 

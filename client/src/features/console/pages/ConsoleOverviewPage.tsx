@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/DashboardShell';
+import { NeedsYou } from '@/features/console/components/NeedsYou';
+import { VisitorQuestions } from '@/features/console/components/VisitorQuestions';
 import { RankBars, TrendChart } from '@/components/charts/charts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState, Skeleton } from '@/components/ui/display';
@@ -91,6 +93,16 @@ export default function ConsoleOverviewPage() {
         title={`Good day, ${profile?.fullName?.split(' ')[0] ?? 'there'}.`}
         description="What the business looks like right now."
       />
+
+      {/*
+        What has stopped, before how the business is doing.
+
+        These two read from their own endpoints and render nothing when there is
+        nothing to say, so they neither block the dashboard below nor add
+        furniture to it on a quiet day.
+      */}
+      <NeedsYou />
+      <VisitorQuestions />
 
       {isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
