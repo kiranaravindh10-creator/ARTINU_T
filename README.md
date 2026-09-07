@@ -377,10 +377,58 @@ Everything in `.env.example` is optional. Set only what you have.
 | `MEMORY_PERSIST`                                                                                                                                                                   | `true`      | Persists the dev store to `server/.data/db.json` across restarts                       |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`                                                                                                                                        | unset       | Google OAuth for photographer sign-in                                                  |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` / `GOOGLE_DRIVE_ROOT_FOLDER_ID`                                                                                                                       | unset       | Google Drive mirror sync (deprecated, kept for migration)                              |
+| `ANTHROPIC_API_KEY`                                                                                                                                                                | unset       | **Server-only secret.** Enables the site assistant. Unset hides its launcher entirely  |
+| `ANTHROPIC_MODEL`                                                                                                                                                                  | `claude-opus-5` | Model the assistant and image moderation both use                                  |
 
 Requesting a driver without its credentials logs a warning and falls back, so
 the app always starts. The Console's System Health page shows which drivers are
 actually in use.
+
+---
+
+## The site assistant
+
+A small help desk on the public site — "Ask ARTINU", bottom right. It answers
+questions about what ARTINU is, how rotation works, what it costs, where it
+operates and how photographers join, and it refuses everything else.
+
+**It can only say what the site says.** Every answer is built from
+`server/src/knowledge/artinu.knowledge.ts`, which is transcribed from the FAQ
+and steps on the Spaces page, the Join page, and — for anything numeric — read
+live from `RENTAL_TARIFF`, `PRICING` and `CONTACT`. Change a rate or a phone
+number in those constants and the assistant quotes the new one on the next
+deploy. It cannot drift from the checkout because it reads what the checkout
+reads.
+
+**How a question is answered**
+
+```
+question → retrieve (scored term overlap over ~15 chunks)
+         → below the relevance floor?  →  "I don't have that" + contact details
+         → otherwise: chunks + grounding prompt → model → answer + follow-ups
+```
+
+Retrieval is lexical, not vector: fifteen short chunks do not justify a second
+API key, a network hop per question and an index to keep in step. The interface
+(`retrieve()` in `services/assistant/retrieval.service.ts`) is what matters —
+swapping in embeddings later touches that one file.
+
+**Why it does not make things up**
+
+- Nothing relevant retrieved means the model is never called. The refusal is
+  returned directly, so there is no context for it to improvise from.
+- Retrieved text is fenced as `<document>` and the prompt states it is data,
+  never instructions — so copy on a page cannot redirect the assistant.
+- The prompt forbids inventing a price, location, turnaround, guarantee or
+  policy, and forbids claiming a booking or payment happened.
+
+**Updating what it knows** — add a chunk to `artinu.knowledge.ts` with a title,
+a section, keywords a visitor would type, and body text the site already
+publishes. Nothing else changes. If ARTINU has not published it, leave it out:
+"I don't have that yet" is a correct answer and a plausible invention is not.
+
+**Without `ANTHROPIC_API_KEY`** the launcher does not render at all, so the
+public site is unchanged.
 
 ---
 

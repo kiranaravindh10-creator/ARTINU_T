@@ -20,6 +20,7 @@ import { announcementRouter } from '@/routes/announcement.routes';
 import { contentManagerRouter } from '@/routes/contentManager.routes';
 import { campaignRouter } from '@/routes/campaign.routes';
 import { homepageRouter } from '@/routes/homepage.routes';
+import { assistantRouter } from '@/routes/assistant.routes';
 
 /** API modules, one per SDD §17 entry. */
 export const apiRouter = Router();
@@ -47,6 +48,8 @@ apiRouter.use('/content-manager', contentManagerRouter);
 apiRouter.use('/campaigns', campaignRouter);
 // The whole homepage in one cached request - see the note in the router.
 apiRouter.use('/homepage', homepageRouter);
+// The website assistant. Public and rate-limited inside the router.
+apiRouter.use('/assistant', assistantRouter);
 
 // Public forms that do not belong to a single resource module:
 // /consultations, /applications, /support

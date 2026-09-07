@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Footer } from '@/components/layout/Footer';
 import { PublicNav } from '@/components/layout/PublicNav';
 import { PromoPopup } from '@/components/PromoPopup';
+import { SiteAssistant } from '@/components/assistant/SiteAssistant';
 import { MetaTags } from '@/components/seo';
 
 /** Restores the top of the page on navigation, but leaves hash links alone. */
@@ -37,6 +38,12 @@ export function PublicLayout() {
         unless a campaign is live and this visitor has not already seen it.
       */}
       <PromoPopup />
+      {/*
+        The help desk. Renders nothing until the server confirms it is
+        configured, so a missing key removes it rather than showing a launcher
+        that cannot answer.
+      */}
+      <SiteAssistant />
     </div>
   );
 }
