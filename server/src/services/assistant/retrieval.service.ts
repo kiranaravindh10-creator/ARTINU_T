@@ -87,10 +87,38 @@ const SYNONYMS: Record<string, string[]> = {
  *
  * The length floor stops it mangling short words: "does" must not become "do".
  */
+/*
+  "swapp" back to "swap".
+
+  English doubles the final consonant before "ed" and "ing", so stripping the
+  suffix leaves a letter behind: swapped becomes swapp, running becomes runn.
+  The corpus has "swap", so "how do the photos get swapped" matched nothing and
+  the visitor was told to phone instead.
+*/
+const undouble = (word: string): string =>
+  word.length > 2 && word[word.length - 1] === word[word.length - 2]
+    ? word.slice(0, -1)
+    : word;
+
 const stem = (word: string): string => {
-  if (word.length > 5 && word.endsWith('ing')) return word.slice(0, -3);
-  if (word.length > 5 && word.endsWith('ed')) return word.slice(0, -2);
-  if (word.length > 4 && word.endsWith('es')) return word.slice(0, -2);
+  if (word.length > 5 && word.endsWith('ing')) return undouble(word.slice(0, -3));
+  if (word.length > 5 && word.endsWith('ed')) return undouble(word.slice(0, -2));
+  /*
+    A plural loses its "s" and nothing else.
+
+    There used to be a rule above this one taking two characters off anything
+    ending in "es", for "boxes" and "churches". It was wrong far more often
+    than it was right, because most English words ending in "es" are a word
+    ending in "e" with an "s" on it. "rates" became "rat" while the keyword
+    "rate" stayed "rate", so asking about rates retrieved nothing at all, and
+    "charges" became "charg" against a query of "charge". Both were silent:
+    the question simply got the phone number instead of the price list.
+
+    Taking one character is right for "rates", "charges", "services" and
+    "photographs" alike. It is wrong for "boxes", which becomes "boxe" — but
+    it is wrong on BOTH sides, so the query and the corpus still meet, which
+    is the only property that matters here.
+  */
   if (word.length > 3 && word.endsWith('s')) return word.slice(0, -1);
   return word;
 };
@@ -101,15 +129,24 @@ const tokenise = (text: string): string[] =>
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter((word) => word.length > 1 && !STOP.has(word))
-    .map(stem);
+    .map(stem)
+    // Again after stemming: "whats" survives the first pass and only becomes
+    // the stop word "what" once the plural is off.
+    .filter((word) => !STOP.has(word));
 
-/** The query's own words plus anything the site would use for them instead. */
-function expand(tokens: string[]): Set<string> {
-  const out = new Set(tokens);
-  for (const token of tokens) {
-    for (const synonym of SYNONYMS[token] ?? []) out.add(stem(synonym));
-  }
-  return out;
+/**
+ * Each word of the question, with the words the site would use for it instead.
+ *
+ * Grouped BY WORD rather than flattened into one bag. The bag version scored a
+ * word once per synonym that happened to appear, so "cancel", which has five,
+ * was worth five times a word with none. It also made it impossible to ask how
+ * much of the question a chunk actually covered, because the count was of
+ * synonyms rather than of words the visitor typed.
+ */
+function expand(tokens: string[]): Set<string>[] {
+  return [...new Set(tokens)].map(
+    (token) => new Set([token, ...(SYNONYMS[token] ?? []).map(stem)]),
+  );
 }
 
 /*
@@ -138,8 +175,8 @@ const MIN_SCORE = 4;
 const TOP_K = 4;
 
 export function retrieve(query: string, limit = TOP_K): RetrievedChunk[] {
-  const terms = expand(tokenise(query));
-  if (terms.size === 0) return [];
+  const words = expand(tokenise(query));
+  if (words.length === 0) return [];
 
   const scored = KNOWLEDGE.map((chunk) => {
     const keywords = new Set(chunk.keywords.flatMap((k) => tokenise(k)));
@@ -147,10 +184,25 @@ export function retrieve(query: string, limit = TOP_K): RetrievedChunk[] {
     const body = new Set(tokenise(chunk.content));
 
     let score = 0;
-    for (const term of terms) {
-      if (keywords.has(term)) score += KEYWORD_WEIGHT;
-      if (title.has(term)) score += TITLE_WEIGHT;
-      if (body.has(term)) score += BODY_WEIGHT;
+    /*
+      How many DIFFERENT words of the question this chunk accounts for.
+
+      The score alone cannot tell the difference between a chunk that answers
+      the question and a chunk that happens to share one word with it, because
+      a single keyword hit is worth 6 and the floor is 4. "Do you sell
+      cameras?" matched the word "sell" in the ownership chunk and was answered
+      with the copyright policy. ARTINU does not sell cameras, and the correct
+      reply was the phone number.
+    */
+    let matched = 0;
+    for (const variants of words) {
+      const hits = (where: Set<string>) => [...variants].some((v) => where.has(v));
+      const before = score;
+      // Scored once per word of the question, whichever of its forms landed.
+      if (hits(keywords)) score += KEYWORD_WEIGHT;
+      if (hits(title)) score += TITLE_WEIGHT;
+      if (hits(body)) score += BODY_WEIGHT;
+      if (score > before) matched += 1;
     }
 
     /*
@@ -159,15 +211,34 @@ export function retrieve(query: string, limit = TOP_K): RetrievedChunk[] {
       not have to win on single words alone.
     */
     const lower = query.toLowerCase();
+    let phrase = false;
     for (const keyword of chunk.keywords) {
-      if (keyword.includes(' ') && lower.includes(keyword)) score += KEYWORD_WEIGHT * 2;
+      if (keyword.includes(' ') && lower.includes(keyword)) {
+        score += KEYWORD_WEIGHT * 2;
+        phrase = true;
+      }
     }
 
-    return { ...chunk, score };
+    return { ...chunk, score, matched, phrase };
   });
 
+  /*
+    One word in common is only an answer when that word was the whole question.
+
+    "Can I cancel?" is a real question about the commitment and its only
+    meaningful word is "cancel", so one match has to be enough. "Do you sell
+    cameras?" has two, and matching just "sell" says nothing about cameras. The
+    difference is not the score, which is 6 either way. It is whether the chunk
+    accounts for what was actually asked.
+
+    A matched keyword PHRASE is exempt: "how much does it cost" is specific
+    enough on its own that it needs no corroboration.
+  */
+  const supported = (chunk: { matched: number; phrase: boolean }) =>
+    chunk.phrase || chunk.matched >= 2 || words.length <= 1;
+
   return scored
-    .filter((chunk) => chunk.score >= MIN_SCORE)
+    .filter((chunk) => chunk.score >= MIN_SCORE && supported(chunk))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }

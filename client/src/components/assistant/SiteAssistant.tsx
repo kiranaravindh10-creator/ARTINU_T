@@ -36,7 +36,7 @@ interface Message {
   sources?: { title: string }[];
 }
 
-const GREETING = 'Hey — what can I help you find?';
+const GREETING = 'Hi. What can I help you find?';
 
 export function SiteAssistant() {
   const [open, setOpen] = React.useState(false);
@@ -197,7 +197,7 @@ export function SiteAssistant() {
                 ),
               )}
 
-              {ask.isPending && <p className="text-sm text-subtle">Thinking…</p>}
+              {ask.isPending && <p className="text-sm text-subtle">Thinking...</p>}
             </div>
 
             {/* Suggestions: the openers first, then follow-ups the answer earned. */}
@@ -256,7 +256,7 @@ export function SiteAssistant() {
                   send(draft);
                 }
               }}
-              placeholder="Ask anything about ARTINU…"
+              placeholder="Ask anything about ARTINU"
               maxLength={500}
               className="max-h-24 min-h-[2.25rem] flex-1 resize-none bg-transparent py-1.5 text-sm text-ink outline-none placeholder:text-subtle"
             />

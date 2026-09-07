@@ -56,7 +56,7 @@ export interface AssistantTurn {
 export const isAssistantConfigured = () => true;
 
 /** What a visitor is told when ARTINU's material does not cover the question. */
-const NO_ANSWER = `I don't have that on the site yet. The ARTINU team can tell you — ${CONTACT.phone} or ${CONTACT.email}.`;
+const NO_ANSWER = `I don't have that on the site yet. The ARTINU team can tell you. Call ${CONTACT.phone} or email ${CONTACT.email}.`;
 
 /** The openers, shown before anything is typed. Each is answerable from the corpus. */
 export const STARTERS = [
@@ -64,7 +64,7 @@ export const STARTERS = [
   'How does it work?',
   'How much does it cost?',
   'Where do you work?',
-  "I'm a photographer — how do I join?",
+  "I'm a photographer. How do I join?",
 ];
 
 /**
