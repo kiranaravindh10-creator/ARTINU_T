@@ -29,7 +29,7 @@ import { catalogService } from '@/services/catalog.service';
 import { cn } from '@/lib/utils';
 import * as React from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { preloadImage, getBlurPlaceholderSync } from '@/lib/imageOptimization';
+import { preloadImage, getBlurPlaceholderSync, resizedUpload } from '@/lib/imageOptimization';
 
 /**
  * Customer quotes come from the database, and only from the database.
@@ -87,20 +87,25 @@ const HOME_HERO = {
   blur: 'data:image/webp;base64,UklGRrYAAABXRUJQVlA4IKoAAABQBACdASoYAA4APu1iqU2ppaOiMAgBMB2JQBWAMYORXFwZZzT8/KvuSzOAAPaI60mPNbnw5qEMAoTTRua/dGdXlmov457eP3fOp6uvVzCkqMLtWTXoyqb1rxq48uGpjMz/ivgAgltNJ29lFxhBRbYhMaxteqHxiY1/3iiieGIXNTc7imLir9uU4Wq7fCRrtmu4Xn/19phQ/RKbzmgfcSbSe2aQ7kD7PfeAAA==',
 } as const;
 
-/**
- * Film grain, as an inline SVG.
- *
- * The reason it exists: a heavily blurred photograph has regions with no
- * structure left in them — a sky, a wall, a stretch of water — and a region
- * with no structure reads as flat paint no matter what colour it is. Grain
- * gives every one of those regions tooth, so the surround behind a photograph
- * looks like a printed surface rather than a filled rectangle.
- *
- * Generated rather than fetched: it is a few hundred bytes of markup, costs no
- * request, and `feTurbulence` is doing what a noise texture file would.
- */
-const GRAIN =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E\")";
+/*
+  What a supporting tile is fetched at.
+
+  A tile occupies a strip — 170px to 400px wide on a desktop, half that on a
+  phone. It was being given the `hero` srcset, whose `sizes` is `100vw`, so the
+  browser fetched the 1920px candidate for a box a tenth that wide: four of
+  them per slide, replaced on every advance. That is why tiles were still blank
+  squares seconds after a slide changed.
+
+  640 covers the widest strip on a 2x screen and lands around 40KB. One fixed
+  width rather than a srcset is deliberate — every tile then shares one url per
+  photograph, so the eight files are fetched once for the whole slideshow
+  instead of once per size per slot.
+*/
+const TILE_WIDTH = 640;
+const TILE_QUALITY = 70;
+
+/** The seam between two photographs. Wide enough to read as a join, not a border. */
+const GAP = 2;
 
 /**
  * The homepage slideshow.
@@ -169,15 +174,19 @@ function PhotographerShowcaseHero() {
   /*
     The shape of each photograph, measured once.
 
-    The layout below has to know whether a photograph is portrait before it can
-    decide how to present it, and nothing in `hero_slides` records that — the
-    row has a url and a credit, not a width. These are already being preloaded
-    by the effect above, so reading `naturalWidth` off the same fetch costs
-    nothing extra.
+    The layout below has to know a photograph's proportions before it can decide
+    how to present it, and nothing in `hero_slides` records that — the row has a
+    url and a credit, not a width.
 
-    Until a measurement arrives a slide is treated as landscape, which renders
-    the single full-frame image — the safe default, and identical to what a
-    landscape photograph gets anyway.
+    Measured from the tile-sized copy, never the original. Asking eight
+    full-resolution files for nothing but their proportions would download tens
+    of megabytes to read two numbers, on the page that is meant to be the
+    fastest on the site. `TILE_WIDTH` is the same url the supporting tiles
+    render, so this fetch is also the tile's fetch: the ratios arrive and the
+    mosaic is already in cache when it is first drawn.
+
+    Until a measurement arrives the slide renders as a single full-frame image —
+    the safe default, and what a landscape photograph gets anyway.
   */
   const [ratios, setRatios] = React.useState<Record<string, number>>({});
 
@@ -196,7 +205,7 @@ function PhotographerShowcaseHero() {
             : { ...current, [slide.id]: probe.naturalWidth / probe.naturalHeight },
         );
       };
-      probe.src = slide.imageUrl;
+      probe.src = resizedUpload(slide.imageUrl, TILE_WIDTH, TILE_QUALITY);
     }
 
     return () => {
@@ -206,6 +215,29 @@ function PhotographerShowcaseHero() {
     // every measurement and start the whole set again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heroSlides]);
+
+  /*
+    The frame's real size, because the mosaic below is sized from the feature's
+    own aspect ratio and needs to know whether the result leaves room for
+    anything either side of it.
+  */
+  const frameRef = React.useRef<HTMLElement>(null);
+  const [frame, setFrame] = React.useState({ w: 0, h: 0 });
+
+  React.useEffect(() => {
+    const node = frameRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setFrame((current) =>
+        Math.abs(current.w - width) < 1 && Math.abs(current.h - height) < 1
+          ? current
+          : { w: width, h: height },
+      );
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   /** Taller than it is wide, with a little tolerance so 1:1 counts as neither. */
   const isPortrait = (id: string) => (ratios[id] ?? 1.5) < 0.95;
@@ -344,38 +376,71 @@ function PhotographerShowcaseHero() {
   const showThumbnails = settings.showThumbnails && !single;
 
   /*
-    A portrait is hung with company; anything else runs the full frame.
+    ── THE FRAME IS FILLED WITH PHOTOGRAPHS, OR IT IS FILLED WITH ONE ────────
 
-    Needs three slides to be a wall rather than a gap with something in it, so
-    with one or two the portrait simply gets the frame to itself.
+    Contain stopped the cropping and left a wide frame two-thirds empty. Filling
+    that with a blurred copy of the photograph did not work: blur far enough to
+    sit behind a print and a sky averages out to one tone, so it arrived as a
+    grey slab with pictures floating on it — a slide, not a wall.
+
+    So nothing behind them. The feature's column is sized from the photograph's
+    own aspect ratio, which means it fits exactly, uncropped, edge to edge top
+    and bottom. Whatever width is left either side is filled with more of the
+    collection, and the frame ends up entirely photographic — there is no
+    surround to look flat because there is no surround.
+
+    Supporting tiles are cover-fitted. They are a mosaic, not the work being
+    credited, and each of them is the uncropped feature on its own slide.
   */
-  const portraitLayout = isPortrait(currentSlide.id) && total >= 3;
+  const featureRatio = ratios[currentSlide.id] ?? 0;
 
-  /**
-   * The feature and its neighbours, in the order they hang: [left, feature, right].
-   *
-   * Prefers portraits either side so the wall reads as one set — a landscape
-   * dropped in at 60% height would sit as a wide sliver between two tall ones.
-   * Falls back to whatever is adjacent when there are not enough portraits,
-   * because a wall with company is still better than one without.
-   *
-   * NOT a useMemo. Everything from `currentSlide` down runs after the early
-   * return for an empty carousel above, so a hook here would be called on some
-   * renders and not others — React counts hooks by position and would throw the
-   * moment the slides arrived. It is three array operations over at most eight
-   * items; memoising it would buy nothing and cost correctness.
-   */
-  const companions = (() => {
-    if (!portraitLayout) return [currentSlide];
+  /** What the photograph would measure at the frame's full height, and full width. */
+  const featureWidth = frame.h * featureRatio;
+  const featureHeight = featureRatio > 0 ? frame.w / featureRatio : 0;
 
+  /*
+    Which way the leftover space runs.
+
+    A photograph narrower than the frame leaves margins either side, so the
+    mosaic is columns. One shorter than the frame — a landscape on a phone —
+    leaves bands above and below, so it is rows. Either way the feature is
+    sized from its own ratio and fits exactly, and the leftover is filled with
+    photographs rather than with anything.
+
+    The 0.82 is the point below which the leftover strips become slivers; past
+    it the photograph is close enough to the frame's shape that covering it
+    costs a sliver of edge rather than the composition.
+  */
+  const measured = frame.w > 0 && featureRatio > 0;
+  const layout: 'columns' | 'rows' | 'single' = !measured
+    ? 'single'
+    : featureWidth <= frame.w * 0.82 && total >= 5
+      ? 'columns'
+      : featureHeight <= frame.h * 0.82 && total >= 5
+        ? 'rows'
+        : 'single';
+
+  /*
+    How much of the frame the supporting tiles take on each side.
+
+    The credit is positioned against this. In the mosaic the bottom-left of the
+    frame is a supporting tile by somebody else, so a credit sitting there names
+    one photographer over another photographer's work — on a site whose whole
+    purpose is attributing photographs, that is the worst kind of small bug.
+    Inset by the strip and the name sits on the picture it belongs to.
+  */
+  const stripSize =
+    layout === 'columns'
+      ? (frame.w - featureWidth - GAP * 2) / 2
+      : layout === 'rows'
+        ? (frame.h - featureHeight - GAP * 2) / 2
+        : 0;
+
+  /** Four supporting photographs, walking forward so the wall changes as it advances. */
+  const tiles = (() => {
+    if (layout === 'single') return [];
     const others = heroSlides.filter((_, i) => i !== index);
-    const portraits = others.filter((slide) => isPortrait(slide.id));
-    const pool = portraits.length >= 2 ? portraits : others;
-
-    // Walk forward from the current slide so the wall changes as it advances
-    // rather than showing the same two neighbours every time.
-    const pick = (offset: number) => pool[(index + offset) % pool.length];
-    return [pick(0), currentSlide, pick(1)];
+    return [0, 1, 2, 3].map((offset) => others[(index + offset) % others.length]);
   })();
 
 
@@ -385,8 +450,19 @@ function PhotographerShowcaseHero() {
   const kenBurns = settings.kenBurns && !reduced;
   const transitionSeconds = reduced ? 0.01 : settings.transitionMs / 1000;
 
+  /*
+    A drift across the whole time the slide is up, not a pop on arrival.
+
+    The scale had no entry in the transition below, so it fell through to
+    framer's default — about a third of a second. A slow zoom that finishes
+    before the viewer has looked at the picture is just a jolt; tying it to the
+    dwell is what makes it read as movement rather than as a transition.
+  */
+  const kenBurnsTransition = { duration: settings.intervalMs / 1000, ease: 'linear' } as const;
+
   return (
     <section
+      ref={frameRef}
       className="relative h-[calc(100dvh-4.5rem)] min-h-[34rem] w-full select-none overflow-hidden bg-ink"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -396,8 +472,8 @@ function PhotographerShowcaseHero() {
       <AnimatePresence>
         <motion.div
           key={`bg-${currentSlide.id}`}
-          initial={{ opacity: 0, x: sliding ? direction * 64 : 0, scale: 1 }}
-          animate={{ opacity: 1, x: 0, scale: kenBurns ? 1.06 : 1 }}
+          initial={{ opacity: 0, x: sliding ? direction * 64 : 0 }}
+          animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: sliding ? direction * -64 : 0 }}
           transition={{
             opacity: { duration: transitionSeconds, ease: 'easeInOut' },
@@ -406,155 +482,137 @@ function PhotographerShowcaseHero() {
           className="absolute inset-0 origin-center"
         >
           {/*
-            ── THE PHOTOGRAPH IS NOT CROPPED, AND THE FRAME IS NOT EMPTY ─────
+            What is behind the photographs for the moment before they arrive.
 
-            This layer used to be one `object-cover` image with a Ken Burns
-            scale on top, which cut the artwork twice over. Measured against the
-            live slides, all eight were losing something and five were losing
-            more than 60%: a portrait in this wide desktop frame lost its top
-            and bottom, and on a phone — where the frame is a tall 100dvh — a
-            landscape lost its sides.
+            The mosaic covers every pixel of this once it has loaded, so it is
+            only ever seen during a decode — but that is exactly the moment the
+            frame would otherwise be a flat rectangle, which is the one thing
+            this hero must never show.
 
-            Contain alone fixed the cropping and created a new problem: a 3:4
-            portrait in a 16:9 frame leaves two thirds of the width doing
-            nothing, which reads as a mistake however tastefully it is filled.
+            So it is a 32px copy of the slide itself, about a kilobyte, blown up
+            and soft. `getBlurPlaceholderSync` was the obvious thing to use here
+            and is the wrong one: it only has previews for photographs shipped
+            with the site, and returns a neutral swatch for everything from
+            Supabase — which is all eight of these. It would have put a flat
+            colour behind the hero while claiming to be a preview of the
+            picture.
 
-            So the presentation follows the artwork:
-
-              · a landscape or square photograph runs the full frame, contained,
-                because at those ratios it very nearly fills it anyway
-
-              · a portrait is hung as a wall — the current photograph at
-                feature size with its neighbours either side, smaller and set
-                back. The width that was empty now holds more of the
-                collection, which is what this carousel is for.
-
-            The flanks are CSS-hidden below `lg`, so a phone — where the frame
-            is already portrait and a single image fills it — gets exactly the
-            single contained image and none of this.
-
-            Behind everything, an ambient field: the same photograph, blurred
-            past legibility and dimmed, so the surround is light drawn out of
-            the work rather than a slab of colour.
+            The blurred backdrop, the vignette and the grain that used to sit
+            here are gone with the empty space they were dressing. Nothing shows
+            behind the photographs any more, and each of them cost a second
+            decode of a full-size image.
           */}
-          <motion.div
-            initial={{ scale: 1 }}
-            animate={{ scale: kenBurns ? 1.06 : 1 }}
-            transition={{ scale: { duration: kenBurns ? 20 : 0, ease: 'linear' } }}
-            className="absolute inset-0 origin-center"
+          <div
+            className="absolute inset-0 scale-105 blur-xl"
             aria-hidden
-            /*
-              The 24px preview, painted on the wrapper itself.
-
-              Photo hides its own img until the file arrives, so whatever sits
-              behind it is what fills the frame for those first moments — and a
-              tone class there is a slab of flat colour, which is exactly what
-              must never appear. Putting the preview here means the surround is
-              made of the photograph from the very first frame: soft because it
-              is 24 pixels stretched over a screen, never a painted rectangle.
-            */
             style={{
-              backgroundImage: `url(${heroBlurPlaceholder})`,
+              backgroundImage: `url(${resizedUpload(currentSlide.imageUrl, 32, 40)})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
-          >
-            <Photo
-              src={heroSrc}
-              alt=""
-              hero
-              priority={isFirstSlide}
-              blurPlaceholder={heroBlurPlaceholder}
-              // Transparent so the preview above shows through until this loads.
-              tone="bg-transparent"
-              className="absolute inset-0 h-full w-full"
+          />
+
+          <div className="absolute inset-0">
+            {layout === 'single' ? (
               /*
-                56px rather than the 72 this started at, and lifted from 0.45 to
-                0.52. Blurred harder and darker it stopped reading as a
-                photograph and started reading as a colour — the horizon, the
-                treeline, the fall of light all dissolved. This keeps enough
-                structure that the eye recognises it as the same picture,
-                out of focus, while staying far enough back that it never
-                competes with the print in front of it.
-
-                Scaled to 115% so the blur's soft edge falls outside the frame.
+                One photograph, filling the frame. Reached when it is already
+                close enough to the frame's shape that covering it costs a
+                sliver of edge rather than the composition — so the slow zoom
+                belongs here, where an edge is being given up anyway.
               */
-              imgClassName="h-full w-full scale-[1.15] object-cover object-center blur-[56px] brightness-[0.52] saturate-[1.1]"
-            />
-          </motion.div>
+              <motion.div
+                className="absolute inset-0 origin-center"
+                initial={{ scale: 1 }}
+                animate={{ scale: kenBurns ? 1.06 : 1 }}
+                transition={kenBurnsTransition}
+              >
+                <Photo
+                  src={heroSrc}
+                  alt={
+                    currentSlide.photographerName
+                      ? `Photograph by ${currentSlide.photographerName}`
+                      : 'A photograph from the ARTINU collection'
+                  }
+                  hero
+                  priority={isFirstSlide}
+                  blurPlaceholder={heroBlurPlaceholder}
+                  tone="bg-transparent"
+                  className="absolute inset-0 h-full w-full"
+                  imgClassName="h-full w-full object-cover object-center"
+                />
+              </motion.div>
+            ) : (
+              /*
+                A stack, the photograph, a stack — running across on a wide
+                frame and down on a tall one.
 
-          {/*
-            Depth, then tooth.
+                The feature's track is a measured pixel width, not `auto` with
+                an aspect-ratio child. That version asks the browser to size a
+                track from an item whose height depends on the track it is in,
+                which is the circular case in grid sizing and resolves
+                differently depending on the engine. The frame is already
+                measured here, and the photograph's ratio with it, so the exact
+                number is known: at the frame's full height the picture is
+                `frame.h * ratio` wide, and that is the track. It fits to the
+                pixel, top and bottom, with nothing cut.
 
-            The vignette settles the corners so the surround recedes and the
-            photograph sits forward of it. The grain gives the flat regions of a
-            blur — sky, water, a wall — a surface, which is the difference
-            between "a wall in a gallery" and "a filled rectangle". Both are
-            deliberately near the threshold of visibility; you should feel them
-            and not see them.
-          */}
-          <div
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(18,16,14,0.5)_100%)]"
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute inset-0 opacity-[0.14] mix-blend-overlay"
-            style={{ backgroundImage: GRAIN, backgroundRepeat: 'repeat' }}
-            aria-hidden
-          />
+                The two `1fr` tracks take everything left over, which is why no
+                part of the frame is ever bare.
 
-          {/*
-            The photographs. Outside the Ken Burns wrapper on purpose: the drift
-            belongs to the field behind, and scaling a contained image would
-            push it past the frame edge and start cropping again.
-          */}
-          <div className="absolute inset-0 flex items-center justify-center gap-4 lg:gap-7">
-            {portraitLayout
-              ? companions.map((slide, position) => {
-                  const isFeature = position === 1;
-                  return (
-                    <div
-                      key={`${slide.id}-${position}`}
-                      className={cn(
-                        'relative shrink-0',
-                        isFeature
-                          ? 'h-full w-full lg:h-[86%] lg:w-[36%]'
-                          : // Set back, and only once there is width to spare.
-                            'hidden lg:block lg:h-[60%] lg:w-[24%] lg:opacity-60',
-                      )}
-                    >
-                      <Photo
-                        src={slide.imageUrl}
-                        alt={
-                          isFeature
-                            ? currentSlide.photographerName
-                              ? `Photograph by ${currentSlide.photographerName}`
-                              : 'A photograph from the ARTINU collection'
-                            : ''
-                        }
-                        hero
-                        priority={isFirstSlide && isFeature}
-                        /*
-                          Transparent, or Photo's cream tone would paint a panel
-                          over the ambient field behind — which is exactly what
-                          made the sides of a portrait look empty.
-                        */
-                        tone="bg-transparent"
-                        className="absolute inset-0 h-full w-full"
-                        imgClassName="h-full w-full object-contain object-center"
-                        /*
-                          Photo paints its blur placeholder as this element's
-                          background at `cover`; behind a contained image that
-                          fills the letterbox with a stretched 24px thumbnail,
-                          drawn over the ambient layer. The field behind is the
-                          placeholder here.
-                        */
-                        style={{ backgroundImage: 'none' }}
-                      />
-                    </div>
-                  );
-                })
-              : (
+                The 2px gaps are the only non-photographic pixels on screen, and
+                they read as the join between prints rather than as a colour.
+              */
+              <div
+                className="grid h-full w-full gap-[2px]"
+                style={
+                  layout === 'columns'
+                    ? { gridTemplateColumns: `1fr ${featureWidth}px 1fr` }
+                    : { gridTemplateRows: `1fr ${featureHeight}px 1fr` }
+                }
+              >
+                {/*
+                  The slow zoom lives on the supporting tiles, not on the frame.
+
+                  It used to scale this whole layer, which meant it scaled the
+                  credited photograph too — 1.06 of a picture sized to fit
+                  exactly is a picture with 3% cut off every edge, so the one
+                  image the layout exists to show whole was the one being
+                  trimmed. Measured in the browser: a 1103x828 feature rendered
+                  1169x878 and overflowed the frame.
+
+                  On the tiles it costs nothing, because they are cover-fitted
+                  and already showing a crop. The wall drifts; the work does not.
+                */}
+                <motion.div
+                  className={cn(
+                    'grid gap-[2px] overflow-hidden',
+                    layout === 'columns' ? 'h-full grid-rows-2' : 'w-full grid-cols-2',
+                  )}
+                  initial={{ scale: 1 }}
+                  animate={{ scale: kenBurns ? 1.08 : 1 }}
+                  transition={kenBurnsTransition}
+                >
+                  {tiles.slice(0, 2).map((slide, i) => (
+                    <Photo
+                      key={`a-${slide.id}-${i}`}
+                      src={resizedUpload(slide.imageUrl, TILE_WIDTH, TILE_QUALITY)}
+                      alt=""
+                      tone="bg-transparent"
+                      className="h-full w-full"
+                      imgClassName="h-full w-full object-cover object-center"
+                    />
+                  ))}
+                </motion.div>
+
+                {/*
+                  The photograph being credited, whole and still.
+
+                  `sizes` is the real width in pixels rather than the `100vw`
+                  the hero srcset assumes. In the mosaic this track is a
+                  fraction of the viewport, and 100vw made the browser fetch the
+                  1920 candidate for a column half that wide.
+                */}
+                <div className="h-full w-full overflow-hidden">
                   <Photo
                     src={heroSrc}
                     alt={
@@ -563,13 +621,36 @@ function PhotographerShowcaseHero() {
                         : 'A photograph from the ARTINU collection'
                     }
                     hero
+                    sizes={`${Math.round(layout === 'columns' ? featureWidth : frame.w)}px`}
                     priority={isFirstSlide}
                     tone="bg-transparent"
-                    className="absolute inset-0 h-full w-full"
-                    imgClassName="h-full w-full object-contain object-center"
-                    style={{ backgroundImage: 'none' }}
+                    className="h-full w-full"
+                    imgClassName="h-full w-full object-cover object-center"
                   />
-                )}
+                </div>
+
+                <motion.div
+                  className={cn(
+                    'grid gap-[2px] overflow-hidden',
+                    layout === 'columns' ? 'h-full grid-rows-2' : 'w-full grid-cols-2',
+                  )}
+                  initial={{ scale: 1 }}
+                  animate={{ scale: kenBurns ? 1.08 : 1 }}
+                  transition={kenBurnsTransition}
+                >
+                  {tiles.slice(2, 4).map((slide, i) => (
+                    <Photo
+                      key={`b-${slide.id}-${i}`}
+                      src={resizedUpload(slide.imageUrl, TILE_WIDTH, TILE_QUALITY)}
+                      alt=""
+                      tone="bg-transparent"
+                      className="h-full w-full"
+                      imgClassName="h-full w-full object-cover object-center"
+                    />
+                  ))}
+                </motion.div>
+              </div>
+            )}
           </div>
         </motion.div>
       </AnimatePresence>
@@ -589,10 +670,27 @@ function PhotographerShowcaseHero() {
         {currentSlide.photographerName ? ` by ${currentSlide.photographerName}` : ''}
       </p>
 
-      <Container className="pointer-events-none absolute inset-x-0 bottom-0 z-20 pb-8 sm:pb-10">
-        <div className="flex items-end justify-between gap-6">
+      <Container
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 pb-8 sm:pb-10"
+        style={layout === 'rows' ? { paddingBottom: stripSize + 24 } : undefined}
+      >
+        {/*
+          Stacked below 1024px, one line above it.
+
+          Side by side, the credit gets whatever is left after the thumbnail
+          strip — about 150px on a phone and 170px on a tablet, which truncated
+          most place names to "BANGALORE URBAN,…". It only has room once the
+          frame is wide enough that the feature does not push the credit inward
+          and the strip does not pull it back: measured, that is 1024px. Below
+          it the name takes its own line and is never cut, and the strip sits
+          left, clear of the assistant button in the corner.
+        */}
+        <div className="flex flex-col items-start gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
           {/* Bottom left — who took it, and where they work. */}
-          <div className="min-w-0">
+          <div
+            className="min-w-0 max-w-full"
+            style={layout === 'columns' ? { paddingLeft: stripSize } : undefined}
+          >
             {currentSlide.photographerName ? (
               <>
                 <p className="truncate font-display text-xl leading-tight text-canvas sm:text-2xl">
@@ -615,7 +713,12 @@ function PhotographerShowcaseHero() {
             autoplay already pauses while the pointer is over the hero.
           */}
           {showThumbnails && (
-            <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+            /*
+              The right margin keeps the strip clear of the assistant button,
+              which is fixed to the bottom-right corner of every page and was
+              sitting on top of the last thumbnail.
+            */
+            <div className="pointer-events-auto flex shrink-0 items-center gap-2 lg:mr-36 lg:self-auto">
               {heroSlides.map((slide, i) => {
                 let offset = i - index;
                 if (offset > total / 2) offset -= total;

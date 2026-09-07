@@ -84,6 +84,32 @@ export function buildSeededSrcSet(
   downgraded these URLs stop resolving, which is why `looksLikeSupabaseStorage`
   is deliberately narrow and everything else falls through to the original.
 */
+/*
+  The parameter that keeps a photograph the shape it was taken.
+
+  `?width=800` on its own does NOT scale the image — it sets the width and
+  leaves the height at the original, which stretches the picture. Measured
+  against the live files, every one of them:
+
+      Thridham    1600x2762  ->  ?width=800                 800x2762   r 0.579 -> 0.290
+      imlight_fr  2834x3777  ->  ?width=800                 800x3777   r 0.750 -> 0.212
+      Jayashree   1600x1201  ->  ?width=800                 800x1201   r 1.332 -> 0.666
+
+      Thridham    1600x2762  ->  ?width=800&resize=contain   800x1381   r 0.579 kept
+      imlight_fr  2834x3777  ->  ?width=800&resize=contain   800x1066   r 0.750 kept
+      Jayashree   1600x1201  ->  ?width=800&resize=contain   800x601    r 1.332 kept
+
+  `contain` is the mode that means "fit inside, keep the ratio" — with only a
+  width given it is simply a scale. Without it every artist's work on the site
+  was being served squashed, and `object-fit: cover` cannot undo that: cover
+  crops the file it is given, and the file itself was the wrong shape.
+
+  This is why the hero looked soft as well as wrong. A 2834-wide picture
+  squashed to 800x3777 and then stretched back across the screen is two lossy
+  resamples of the same pixels.
+*/
+const FIT = '&resize=contain';
+
 const SUPABASE_OBJECT = '/storage/v1/object/public/';
 const SUPABASE_RENDER = '/storage/v1/render/image/public/';
 
@@ -103,14 +129,15 @@ const looksLikeSupabaseStorage = (url: string) =>
  */
 export function supabaseResized(url: string, width: number, quality = 75): string {
   if (!looksLikeSupabaseStorage(url)) return url;
-  return `${url.replace(SUPABASE_OBJECT, SUPABASE_RENDER)}?width=${width}&quality=${quality}`;
+  return `${url.replace(SUPABASE_OBJECT, SUPABASE_RENDER)}?width=${width}${FIT}&quality=${quality}`;
 }
 
 /**
  * A srcset of on-the-fly resizes, or '' when this is not a Supabase object.
  *
- * Widths above the source are harmless: Supabase clamps to the original rather
- * than upscaling, so the largest candidates simply resolve to the same pixels.
+ * Widths above the source are harmless: with `resize=contain` Supabase clamps to
+ * the original rather than upscaling, so the largest candidates simply resolve
+ * to the same pixels.
  */
 export function buildSupabaseSrcSet(url: string, widths: number[]): string {
   if (!looksLikeSupabaseStorage(url)) return '';
@@ -166,7 +193,7 @@ export function isSupabaseUpload(url: string): boolean {
 export function resizedUpload(url: string, width: number, quality = 72): string {
   if (!isSupabaseUpload(url)) return url;
   const [base] = url.split('?');
-  return `${base.replace(SUPABASE_OBJECT, SUPABASE_RENDER)}?width=${width}&quality=${quality}`;
+  return `${base.replace(SUPABASE_OBJECT, SUPABASE_RENDER)}?width=${width}${FIT}&quality=${quality}`;
 }
 
 function buildUploadSrcSet(url: string, widths: readonly number[]): string {
