@@ -47,9 +47,10 @@ export function SiteAssistant() {
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
 
   /*
-    Asked once, and only when the panel is first opened — a visitor who never
-    opens it should not pay for a request. `retry: false` because a failure
-    here means the launcher stays hidden, which is the right outcome.
+    One cached request per session for the starter questions.
+
+    `retry: false` because if this fails the launcher stays hidden, which is the
+    right outcome — better no help desk than a button that cannot answer.
   */
   const config = useQuery({
     queryKey: ['assistant-config'],

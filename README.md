@@ -377,7 +377,7 @@ Everything in `.env.example` is optional. Set only what you have.
 | `MEMORY_PERSIST`                                                                                                                                                                   | `true`      | Persists the dev store to `server/.data/db.json` across restarts                       |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`                                                                                                                                        | unset       | Google OAuth for photographer sign-in                                                  |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` / `GOOGLE_DRIVE_ROOT_FOLDER_ID`                                                                                                                       | unset       | Google Drive mirror sync (deprecated, kept for migration)                              |
-| `ANTHROPIC_API_KEY`                                                                                                                                                                | unset       | **Server-only secret.** Enables the site assistant. Unset hides its launcher entirely  |
+| `ANTHROPIC_API_KEY`                                                                                                                                                                | unset       | **Server-only secret.** Image moderation only — the site assistant needs no key        |
 | `ANTHROPIC_MODEL`                                                                                                                                                                  | `claude-opus-5` | Model the assistant and image moderation both use                                  |
 
 Requesting a driver without its credentials logs a warning and falls back, so
@@ -389,46 +389,55 @@ actually in use.
 ## The site assistant
 
 A small help desk on the public site — "Ask ARTINU", bottom right. It answers
-questions about what ARTINU is, how rotation works, what it costs, where it
-operates and how photographers join, and it refuses everything else.
+what ARTINU is, how rotation works, what it costs, where it operates and how
+photographers join, and it refuses everything else.
 
-**It can only say what the site says.** Every answer is built from
-`server/src/knowledge/artinu.knowledge.ts`, which is transcribed from the FAQ
-and steps on the Spaces page, the Join page, and — for anything numeric — read
-live from `RENTAL_TARIFF`, `PRICING` and `CONTACT`. Change a rate or a phone
-number in those constants and the assistant quotes the new one on the next
-deploy. It cannot drift from the checkout because it reads what the checkout
-reads.
+**There is no language model and no API key.** Every answer is a paragraph from
+`server/src/knowledge/artinu.knowledge.ts`, returned as written. Nothing
+rephrases it, so it cannot become a claim nobody approved. Verified: across
+twenty questions, twenty answers matched the knowledge base verbatim and none
+were generated.
+
+The knowledge is transcribed from the FAQ and steps already published on the
+Spaces page and the Join page. Anything numeric is not transcribed at all — the
+rates, the phone number, the office hours and whether GST applies are read live
+from `RENTAL_TARIFF`, `PRICING` and `CONTACT`, the same constants the checkout
+prices from. Change a rate there and the assistant quotes the new one on the
+next deploy.
 
 **How a question is answered**
 
 ```
-question → retrieve (scored term overlap over ~15 chunks)
-         → below the relevance floor?  →  "I don't have that" + contact details
-         → otherwise: chunks + grounding prompt → model → answer + follow-ups
+question → retrieve (scored term overlap over ~16 chunks)
+         → below the relevance floor?  →  "I don't have that" + real contact details
+         → otherwise: return the matching paragraph(s) + hand-written follow-ups
 ```
 
-Retrieval is lexical, not vector: fifteen short chunks do not justify a second
-API key, a network hop per question and an index to keep in step. The interface
-(`retrieve()` in `services/assistant/retrieval.service.ts`) is what matters —
-swapping in embeddings later touches that one file.
+Retrieval is lexical — synonyms ("bangalore" → "bengaluru", "how much" → "rate")
+and light stemming, so "where are you located" reaches a chunk keyworded
+"location". Sixteen short chunks do not justify a vector store.
 
-**Why it does not make things up**
+**Why it cannot make things up**
 
-- Nothing relevant retrieved means the model is never called. The refusal is
-  returned directly, so there is no context for it to improvise from.
-- Retrieved text is fenced as `<document>` and the prompt states it is data,
-  never instructions — so copy on a page cannot redirect the assistant.
-- The prompt forbids inventing a price, location, turnaround, guarantee or
-  policy, and forbids claiming a booking or payment happened.
+- Nothing relevant retrieved means there is no text to return, so the only
+  option left is to say so and give the real phone number. The defence is
+  structural, not a prompt asking a model to behave.
+- Answers are corpus text, verbatim. There is no step that could rewrite
+  "we install in Mysuru through partner crews" into something broader.
+- Follow-up suggestions are hand-written per chunk, so every one of them leads
+  to an answer that exists. No dead ends.
 
 **Updating what it knows** — add a chunk to `artinu.knowledge.ts` with a title,
-a section, keywords a visitor would type, and body text the site already
-publishes. Nothing else changes. If ARTINU has not published it, leave it out:
-"I don't have that yet" is a correct answer and a plausible invention is not.
+a section, keywords a visitor would type, and body text written the way you
+would say it out loud. That text *is* the answer, so what you write there is
+exactly what a visitor reads. Add follow-ups for it in `FOLLOW_UPS` in the same
+file. If ARTINU has not published something, leave it out: "I don't have that
+yet" is a correct answer and a plausible invention is not.
 
-**Without `ANTHROPIC_API_KEY`** the launcher does not render at all, so the
-public site is unchanged.
+**If ARTINU ever wants phrasing that adapts to how a question was asked**,
+`compose()` in `services/assistant/assistant.service.ts` is the seam — a model
+would slot in there without touching retrieval, the route or the UI. It would
+need an API key and a bill, and would trade the verbatim guarantee for fluency.
 
 ---
 
@@ -576,5 +585,6 @@ Other properties worth knowing:
 #   A R T I N U - V 1 
  
  
-#   A R T I N U _ W e b s i t e _ D e v e l o p m e n t  
+#   A R T I N U _ W e b s i t e _ D e v e l o p m e n t 
+ 
  

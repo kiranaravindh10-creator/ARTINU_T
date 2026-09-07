@@ -203,3 +203,32 @@ export const KNOWLEDGE: KnowledgeChunk[] = [
       .join(', ')}. Booking a survey starts with that enquiry — someone comes and looks at the space first, and there is nothing to sign at that stage.`,
   },
 ];
+
+/**
+ * What to offer next, per chunk.
+ *
+ * Hand-written rather than generated, and that is the point: every question
+ * below is one this corpus can actually answer, so a visitor following the
+ * suggestions can never walk into a dead end. Generating them would mean
+ * offering questions nobody has written an answer to.
+ *
+ * Each entry avoids pointing back at the chunk the visitor just read.
+ */
+export const FOLLOW_UPS: Record<string, string[]> = {
+  'what-is-artinu': ['How does it work?', 'How much does it cost?', 'Where do you work?'],
+  'who-its-for': ['How does it work?', 'How much does it cost?', "I'm a photographer — how do I join?"],
+  'how-it-works': ['How much does it cost?', 'What happens on rotation day?', 'What does installation involve?'],
+  rotation: ['How much does it cost?', 'How long is the commitment?', 'What if I don’t like a photograph?'],
+  installation: ['What happens on rotation day?', 'How much does it cost?', 'Where do you work?'],
+  'pricing-business': ['What does the price include?', 'How long is the commitment?', 'How does it work?'],
+  'pricing-home': ['What does the price include?', 'How does it work?', 'Where do you work?'],
+  'pricing-whats-included': ['How much does it cost?', 'How long is the commitment?', 'How do I get started?'],
+  'for-photographers': ['Do photographers get paid?', 'Who owns the photographs?', 'How does it work?'],
+  'photographer-payment': ['Who owns the photographs?', 'How do I join as a photographer?', 'How does it work?'],
+  'not-happy-with-a-photograph': ['What happens on rotation day?', 'How long is the commitment?', 'How much does it cost?'],
+  ownership: ['Do photographers get paid?', 'What happens on rotation day?', 'How does it work?'],
+  commitment: ['How much does it cost?', 'What happens on rotation day?', 'How do I get started?'],
+  locations: ['How does it work?', 'How much does it cost?', 'What does installation involve?'],
+  'space-types': ['How much does it cost?', 'How does it work?', 'Where do you work?'],
+  contact: ['How does it work?', 'How much does it cost?', 'Where do you work?'],
+};

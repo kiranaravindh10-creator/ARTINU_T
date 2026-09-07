@@ -17,16 +17,16 @@ import { ask, isAssistantConfigured, STARTERS } from '@/services/assistant/assis
 export const assistantRouter = Router();
 
 /**
- * Twelve questions a minute per IP.
+ * Thirty questions a minute per IP.
  *
- * A person reading answers asks a few; anything near this ceiling is a script.
- * Deliberately far tighter than the global 300/min, because every request here
- * costs a model call — the global limiter protects the server, this protects
- * the bill.
+ * An answer costs a lookup over fifteen chunks, so this is about keeping a
+ * script from hammering a public endpoint rather than about a bill — there is
+ * no per-answer cost to protect. Loose enough that a fast reader clicking
+ * through the suggested questions never meets it.
  */
 const assistantLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 12,
+  limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "We've had a lot of questions at once. Please try again in a moment." },
@@ -60,23 +60,18 @@ assistantRouter.post(
   asyncHandler(async (req, res) => {
     const { message, conversation } = req.valid as z.infer<typeof askSchema>;
 
-    if (!isAssistantConfigured()) {
-      res.status(503).json({ message: 'The assistant is unavailable right now.' });
-      return;
-    }
-
     try {
       res.json(await ask(message, conversation));
     } catch (error) {
       /*
-        The provider's error never reaches the browser.
+        Nothing internal reaches the browser.
 
-        A rate-limit body, a model name or a stack trace would tell a visitor
-        nothing useful and tell an attacker what is behind this endpoint. It is
-        logged in full for us and answered with one sentence for them.
+        There is no external provider behind this any more, so a failure here
+        would be our own bug — which is exactly the kind of thing whose stack
+        trace should be in our logs and not in a visitor's network tab.
       */
       logger.error('Assistant failed', error);
-      res.status(502).json({
+      res.status(500).json({
         message: 'Something went wrong on my side. Try again, or contact the ARTINU team.',
       });
     }
