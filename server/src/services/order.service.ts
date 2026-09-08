@@ -210,8 +210,51 @@ export async function createOrderForSpace(draft: OrderDraft, space: Space): Prom
 }
 
 /** The space owner placing their own order. */
+/*
+  How long a repeated checkout counts as the same checkout.
+
+  Long enough to cover a double-click, a retried request and somebody going
+  back and pressing the button again. Short enough that a customer who really
+  does want the same three photographs for the same room again later gets a
+  second order, which is a real thing to want.
+*/
+const DUPLICATE_SUBMIT_WINDOW_MS = 10 * 60_000;
+
 export async function createOrder(draft: OrderDraft, user: StoredUser): Promise<Order> {
   const space = await assertOwnsSpace(draft.spaceId, user);
+
+  /*
+    The same checkout submitted twice is one order.
+
+    Nothing stopped a second press of "Place order" from creating a second
+    order. Measured against the live database: the identical body posted twice
+    produced ARTINU-2026-1007 and ARTINU-2026-1008, both pending_payment, both
+    for the same three photographs on the same wall. The customer pays one and
+    the other sits in the Console looking like an unpaid order forever.
+
+    Matched on what makes an order the same order rather than on a token the
+    client would have to send: the same space, the same set of photographs, and
+    still unpaid. Anything already paid, cancelled or in production is left
+    alone, so this can only ever collapse two identical unpaid orders into the
+    first one.
+  */
+  const fingerprint = (items: { artworkId: string }[]) =>
+    [...new Set(items.map((item) => item.artworkId))].sort().join('|');
+
+  const wanted = fingerprint(draft.items);
+  const cutoff = Date.now() - DUPLICATE_SUBMIT_WINDOW_MS;
+
+  const existing = await db.orders.find({ where: { ownerId: user.id } });
+  const duplicate = existing.find(
+    (order) =>
+      order.spaceId === space.id &&
+      order.status === 'pending_payment' &&
+      new Date(order.placedAt).getTime() >= cutoff &&
+      fingerprint(order.items) === wanted,
+  );
+
+  if (duplicate) return duplicate;
+
   return createOrderForSpace(draft, space);
 }
 

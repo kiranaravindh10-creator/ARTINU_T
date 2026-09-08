@@ -153,6 +153,43 @@ paymentRouter.post(
       throw badRequest('This order has already been paid for.');
     }
 
+    /*
+      An order gets ONE open payment, however many times this is called.
+
+      Every call used to insert a new row and repoint `order.paymentId` at it.
+      Pressing "Pay" twice, or a retried request on a flaky connection, left two
+      or three payments against one order: the newest carrying the QR the
+      customer is looking at, the rest stranded in `awaiting_payment` forever
+      because nothing ever moves a payment nobody is going to make. Accounts
+      then sees several pending payments for one order and has to work out which
+      is real, and the count of "payments awaiting verification" is wrong.
+      Measured against the live database during a pipeline check: three calls,
+      three rows, one order.
+
+      Returning the open one is also what the customer wants. The QR is the same
+      UPI request either way, and reusing it keeps the reference on the order
+      matching the reference in the note they are about to pay against.
+
+      An expired payment is not reused: `expiresAt` has passed, so the QR it
+      holds is stale and a fresh charge is exactly right. `/retry` is unchanged
+      and is still how a FAILED payment gets a new attempt.
+    */
+    const open = (await db.payments.find({ where: { orderId: order.id } })).find(
+      (candidate) =>
+        candidate.status === 'awaiting_payment' &&
+        (!candidate.expiresAt || new Date(candidate.expiresAt).getTime() > Date.now()),
+    );
+
+    if (open) {
+      // Keep the order pointing at the payment being returned, in case an
+      // earlier duplicate had moved it.
+      if (order.paymentId !== open.id) {
+        await db.orders.update(order.id, { paymentId: open.id, updatedAt: now() });
+      }
+      res.status(200).json({ ...open, gateway: null });
+      return;
+    }
+
     const provider = getPaymentProvider();
     const reference = paymentReference();
     const charge = await provider.createCharge({
