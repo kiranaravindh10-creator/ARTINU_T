@@ -9,32 +9,24 @@
  * paint so nothing reflows when the real file arrives, and cost no request.
  */
 export const BLUR: Record<string, string> = {
-  'partners/nib-and-nosh-card': 'data:image/webp;base64,UklGRugAAABXRUJQVlA4INwAAADQBQCdASoYAB4APt1gpEyopiOiMBgMARAbiUAWdB32DMDo4NVz3F660qpLKSY8lmY44xzA+RMAAP7qldMi86OBwrOF7zM2xDzazGPJuvlyv9I7gs7GXoZ6xKbwlQVtP9yg4/w2GFzvLrjhMGXQFZPrtHYv8a/EcCKqgqLw/zqyzvQothiMdyjlxXF8D2Wt6eu5GQdXCcaCI6/FlvJL4s+PuT4kgTxQvV7/60vDWNGfqmYm4drv5Bs0jSXJt+x5oYXMGIUxqe3eAOGWuoVkkdwlUv11t/Hnd+InAAAA',
-  'partners/nib-and-nosh-interior-1': 'data:image/webp;base64,UklGRiIBAABXRUJQVlA4IBYBAAAwBgCdASoYAB4APt1eqE4opSOiMBgIARAbiWYAnSDmanG3SrqYe2AvylJqlTINvYkBXj1hWlxYy3yAAP7rRwj0Nk6yiIHQloUtDzdKgBiSsILKorPii1RnczWREApSbf3mR7FnvXsUY3o/eg+PiHG1O9lNg/losfDLf2GkZptBph9gMvzRHzitzF89P402TGvgq4m0/USnivs5l1ccVOayUFmBJbEBZYIpwxxwDW035V6sIz1RkAvcq/Nqq623CA/0D3M9tW1e6Dbx6XnxCrc+I0WbXVr5E+jiuPeHNEwNd3hfk6UPDuheJyIb3Cen8/LkB2Ypgjl7JUTClO2+Vq+9LFse/cvOJOhdf/LSFOroIu44sqAAAA==',
-  'partners/nib-and-nosh-interior-2': 'data:image/webp;base64,UklGRmQBAABXRUJQVlA4IFgBAAAQBwCdASoYAB4APt1cqU6opKOiMBgIARAbiWwArB2J6wDSAbgAc8VheKP/4DbQWzMcTFv1JPkuCw8qZ3z3FHD8AAD+3r6yqflV92Yr2FC0sqnms9aC2N7NV6lCPL05SYuNGw/RalOL9HVt/nNVubJGFON43H23w95cTAy2XNs0E4bGBsmOIfk154BxRIb1HNvTxwLL1aFJAn1Md13savSJx0XFUVQ/NIX1tNgMWVJV1NTysuGz6KH0/7bYbGf5shTNR7t60wf4kwgNJTz2Qc/RLvVABe7glkszqhdquthCzWnz5PoqKVh4ufCZipXM2QhSnMLUgWrybIp+9V3p5dGGA/tbEgnV6N/wuU9SVQqqto7IObStuLTniFbQw567dud/sOqWdW1VpDSJGIoOdtwqWbiLoPJhydGFhdKQyUvu7PPqHjgpbZiodudV8A955z+O68a/djqAAA==',
-  'partners/nib-and-nosh-frame-1': 'data:image/webp;base64,UklGRrwAAABXRUJQVlA4ILAAAADQBACdASoYAB4APr1So0ynJSOiN+gA4BeJYwAAiZrNDMOoIBZ5hICX5jPbvUT3AAD+7UagJWHhF1tvfXTn3Lnp7ynUhnOUeTjkqewCH7/z3tv5UP8AU0OpwJfWfFy/XBrSIQou7GZDTqMts1uS4rrfeAv9IhN9r8EJRY60LQKeeCLzP1PZQlD8lsGqFPxZOBWgaMJ5dJjhLxMqla6xK3JhtkQ59xJc4xIsjSfHgAAAAA==',
-  'partners/nib-and-nosh-frame-2': 'data:image/webp;base64,UklGRq4AAABXRUJQVlA4IKIAAADQBACdASoYAB4APt1sqVAopiOiqAqpEBuJZACdMsdFMDwhJkRMYK+lMeAhKPNmgAD+7ToO+Iu5JziUD0gSZ/7MVffhQMgY9qLwPY6MEgc0HKAMCv3kqGb3/sEP0htzV5n87hehDk98SxzwgDa5L1tZqHfY1TJv7sO3bmryDx5+GsyrbjpZtqMssQZN4ewzMr+R3mRkoqWYuYqiDuDv6bS3AAA=',
-  'partners/nib-and-nosh-frame-3': 'data:image/webp;base64,UklGRrIAAABXRUJQVlA4IKYAAABQBQCdASoYAB4APt1ao02opSMiMBgMARAbiWIAuwAQvJDzt1x8HEOEaQQsNMUoUx606AAA/oxOt+evS5c055Z42/iCJlbWjXX5zPe5LjqfH47j5jMp20DmYHXMrS5qYcA7d99BCkHiP2MR6DUhytX0t39DGnR4b+eM4ce49EK71XmVnj8yPKoUh3cvzI7yr16ubojLb3/EChxvkCfJ/dNu1Q+6qAAA',
-  'partners/nib-and-nosh-frame-4': 'data:image/webp;base64,UklGRtAAAABXRUJQVlA4IMQAAAAwBQCdASoYAB4APt1iqE+opSOiKAqpEBuJbACxBuAALCcrr1xSJYans/HNbDfwL2sQAAD+3+gm6B+EurAw3FX6ASA0W6VPkjSgYe+A+ppYTXjE93bHBYsM3RJFO7gYtANocqZ2vWXUtZQPyo+UpeSbRhtV5hX+dQwKbamYjh7jsRc3zsyOsp0PRXHEDGTglV/jwzwF8G6KSMlf5eaYIzNAognDN8fytc52EH/LKPBd2h015Sj1vkFywKeyDn9acCkZ1BgA',
-  'partners/nib-and-nosh-frame-5': 'data:image/webp;base64,UklGRtYAAABXRUJQVlA4IMoAAAAQBQCdASoYAB4APtVapUyoJaOiMAwBABqJYwDO7CHfGj7xrK/+MUVSqOswgD2hhNgAAP7rJ2UvxoeVHCxKEFE64uJnp6WmT1qC637VzAUk+Wml95P5SVitquSyThMC/QEaI+LGORziynYT+ueBHzXXmfef3DlDhEZEWc3bVKmnXHLrBbeBlO5VdeVqtlt7yH9u24rPlqfDgWlhnyw/NxC9Hn7tK7PKDqzhGeDhH3+LKUjf4+Ktw7nm/Mm5bO2R5MrjeKGmudoYk8AA',
-  'partners/nib-and-nosh-frame-6': 'data:image/webp;base64,UklGRuYAAABXRUJQVlA4INoAAADwBQCdASoYAB4APt1YpE2opKMiMBgMARAbiWMArAHcC4aSHeI+1HxfCmPFx4u9IejUNZnKMNNwAAD+8Getv9hBUcBqkSUrgI00ZRPZPbeMfDi+fTl4EStBolGLQXf5MB777uP/PX2qVWUjQArFTm41/EQQ7T4PlZQ3+8FhdBAztqATDIQjD0II0kT2XrJ/GsQtqvmrRt/JVROqwmlUWloqEcCGSVUx2qYcTzKhMwdYlsEH7z0X9cV0/8IxGdneC/4zzeBjvJ6EsayBGRYyCQLjNOHKtcM0VhMgAA==',
-  'testimonials/oummishra': 'data:image/webp;base64,UklGRvQAAABXRUJQVlA4IOgAAAAQBgCdASoYACAAPt1YpE2opKMiMBgMARAbiWMArDMhpckk/X0EOE8FrkziE4luoVB6DLCsTzyNpIAA/uqA19SJLR2Rm77R0YFFHfkd0oeui+VVUJfEZPg20aoz6SJX5WSz0HcVVhTSl0zDJlobvsIVWHpzy9ifVTBEjb+YSRse9MzdSVBC9VtkcwnTvNmsSk4ux7jHMFJfJXmwwNaKHWCuqEX8Zb8cZeJf3WDFKKIqwRGzvqL8cqHePqoxyPuAB8ug8w4pJM6qLEegZoyLiAmlgWirOBX1wHT3TehmeX1Qeco78FWtAAAA',
-  'testimonials/sachin': 'data:image/webp;base64,UklGRuoAAABXRUJQVlA4IN4AAACQBQCdASoYACAAPt1gqE4opaOiMBgIARAbiWIAnTM5Zc0JztTg2rM4luRTM3NQaa3MbXU5AAD8iQueFYeOP30291R9EsynbVBfpRmQ29EdJMFyMWd6KZ7lDP5eFbQDdzSmhEO9fC623Z8QDq5lb6CHVe3tkXX0QU+oz19BRCBNvlbP62IzXFRrRdseu/KlVtK72sppgbrHjqFqnCX/fJ30LiP1V6d+rlprKUIQlRZRiHPHPz0JUZ87Bhc1fU6UuNhUvetalKIWzU8xj9sIm8ElexNa4t86ex3hhD5OgAA=',
+  'team/karthik': 'data:image/webp;base64,UklGRswAAABXRUJQVlA4IMAAAADQBACdASoYAB4APt1kqE+opaOiKAqpEBuJZwCzgDTuGNKhVTnGhX0lNMeDKsxZgAD+ZtRXLrtsl6tpz5eoeK1LpKPJi5PQM5RNAKEQZlziVffvDz50eg/sFHnl3J+sgqsh0Jx9pwRWI92np58QlJ+/+AIbqFUFSLgvv8xCWBmcG8iBfY+WFd1ojUwx2Iti9RNJIY4OsvLYS5EnDWqnWPMLl9qdKJmfForwHAA0gvnt5T/ZtZiRnBna2LXkergAAAA=',
+  'team/sanskrithi': 'data:image/webp;base64,UklGRhIBAABXRUJQVlA4IAYBAABQBgCdASoYAB4APt1cpUyopSOiMAgBEBuJZgC7BbRlGxr4g79rmLxOIQ51pnAwAvWLSn4uLTiPcMCeAAD+22pdKFf62bgYkW+w/3glqidM5i6rXtgD4DZxz3WZ2kSeXnlF5BO1yzKWqJAY0aVLKNmBkAQfD2G3MuSA/Nq1/wy9bSq0L2/4Pn+JENH3SrLjfljkCi0a5t8PQWYfaj/LyBUlDE4PuQBuEgbGhDyDTadYlmwrexAw4mXchsZG9hb5Dp7An9gElbHlQxR0+rAgeXOd2U2oqIuKIxF2AkRmNwJBLZF9XIq185zJP+2rCXUc82V1b6IyJfXiYB2QlauX+D87lClHhpAA',
+  'team/mithilesh': 'data:image/webp;base64,UklGRg4BAABXRUJQVlA4IAIBAACQBgCdASoYAB4APt1kp02opiOiMBgIARAbiUAVx5zQfja1DIN34xyiI+mRn3gH3AQlXHfp0nIY2IVVF4o4AP65851G12HIfIc5+LHdu68NRKYkcm58EaxatPyBJOjhXqgOY1qiw1Ese3gLT5mqKsu2r/l2BJ1VWULOCAlRcE0wl1lwrSwJLYAkr94grgr855A24SP93Fra3AKW2mx8GoSPtInIc/N11vyAVSPm+tjSCHzvhQJC9SGYYeo8w3knXwuFjtlsDybmtIp/lyUjjyFcw8ktE/vit5qe06dp9yLoqVlrItRfmO/IALbjlieTx+VmiW7fPcSoycP17TT5JtZwAAA=',
+  'team/poosan': 'data:image/webp;base64,UklGRioBAABXRUJQVlA4IB4BAACQBgCdASoYAB4APtVaokyoJSMiMAwBABqJZgC7IJPg0Bf7rKSs8sjgaE4TP6uM3xzRoFAbiATtk8qZi1u8AP5b2cET3kqNKOGRGf4z4kk5GsrOC2xw34pMCV0hb28e1+Mr/wyrlu35WIanxpxzjW4QByfMUnSflvASKoj4cbMDDIZSq8Xr4gGJ0Xf/ztcEk9lx5wFZIhzJAZaixPDWQgM3EtnMYZLYNrMhBp33Z3tHXGAV0hKz3JI3nOZ0BAj5cX6A6zkfwO9tDPtOpAiRsqTwCgs7c21mjhzR3KV3pzOa8MAADEnCS89/6EeHdz1F/PhTpuym0xTPM7Z5GOsi9LPT+1LqUgSlmkZqLsWedbLg96qCyqGfY1X4ytvMAAAA',
+  'team/thakarshi': 'data:image/webp;base64,UklGRjYBAABXRUJQVlA4ICoBAABQBgCdASoYAB4APt1aqE6opKOiMBgIARAbiWwAtOwIHZVONpoMT+bNpmH7jgEfrz1YihWntHhwcR9HAAD+lSVtkfj2t2nZwOilds/myOP32w0CFVwR4WqxJJvxnd5aTJ9sFOzZ8DITgXJS5OGOeX6GOHFy2wdztd/ibECeXN4ZVfiSNaBs3THCXdBp8ZxySQBlppPHWyW1alCeDEfZbmAKZopRzGaVmGrJjc5ffKIQqaCySAvl+3ohl0s5GuES5IBrbTZVVQaB1mC7aFWDHetotaIZVbJX9czN6CEhdoXkV8o7Id+emOxrGTgMtdvJlBAjmiU2CusWqHECt+sQl8T5A1q1hPp6cjesXeSzFSNiZx6w1DkWoHz2FcYnag/snHM5ZUCD2mhBAAAA',
+  'team/vibhu': 'data:image/webp;base64,UklGRjYBAABXRUJQVlA4ICoBAAAwBgCdASoYAB4APt1cqU0opSQiKA1REBuJaACdMzAOAhGtZ6MLz7EhMCeVvGV0z9bnWAJka87qoGgAAP70MsqN/Cnb7zdep7AavvP95dSYhtnIKspGjKeOkJEB/5t9oo0USXTkPiycvXJapAKrVdrWZveN35Q2IY6WnZEJVv2cl6ZL4x26Lyb9WQeBvEBiWmHUsF3rinyiPuITuj3Y4K4axBgeN9qQsfISf8YHwQlyxOfagQG62ltp4gDsKYsntdWS8qK26f6GwL3RKGGYKmN9C8rV3mERShw0bl6D3rPSWG08VEUQmzLSvPqei7GFRGCqdW6YAjG23L4I4XVYY9qttULTMeUlSSSa/tTLK1g9oCXPdwyQXsoi8WZI5gcG4zq9AK2mkTQeBYAA',
+  'team/alen': 'data:image/webp;base64,UklGRhwBAABXRUJQVlA4IBABAACQBQCdASoYAB4APt1eqE0opSQiKA1REBuJbACdMoMulH5TNfWT4c/e6A00Eg2j2SCbIt3aYADKZg44K/S6QUOiWIxjrvGEQla45vqgNNBwMCF4R5cL0J/fhPqH43N2FuTugN/Nj9PU86YPh9wTmmC0f+CTYJoq4bc47VPbtzRJVdPZJ80pWX0lH2f/jBEsNpyzSItZFUviGSIwHd6FUzQlbBccoE538CTb9RzUNtnxboHy0wM7m7T1iSEyaR14wuCtoPNH70wEIkKgMyUTD6AHt5mQdLgGi67loZcpwkgu5JNdPSKRR4rZXBwLuAmc03WulXo4hOwJl79+nZkuD2AmQ4TBFzSa6427Qe6hazAAAA==',
 };
 
 /** Which widths actually exist on disk, so a srcSet never points at a 404. */
 export const WIDTHS: Record<string, number[]> = {
-  'partners/nib-and-nosh-card': [480, 768, 1024],
-  'partners/nib-and-nosh-interior-1': [480, 768, 1024],
-  'partners/nib-and-nosh-interior-2': [480, 768, 1024],
-  'partners/nib-and-nosh-frame-1': [480, 768, 1024],
-  'partners/nib-and-nosh-frame-2': [480, 768, 1024],
-  'partners/nib-and-nosh-frame-3': [480, 768, 1024],
-  'partners/nib-and-nosh-frame-4': [480, 768, 1024],
-  'partners/nib-and-nosh-frame-5': [480, 768, 1024],
-  'partners/nib-and-nosh-frame-6': [480, 768, 1024],
-  'testimonials/oummishra': [360, 720],
-  'testimonials/sachin': [360, 720],
+  'team/karthik': [480, 768],
+  'team/sanskrithi': [480, 768],
+  'team/mithilesh': [480, 768],
+  'team/poosan': [480, 768],
+  'team/thakarshi': [480],
+  'team/vibhu': [480, 768],
+  'team/alen': [480],
 };
 
 /**

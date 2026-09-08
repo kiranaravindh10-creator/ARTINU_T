@@ -84,6 +84,13 @@ interface TeamGroupMember extends TeamMember {
    */
   blur?: string;
   portfolio?: string;
+  /**
+   * The generated widths for this portrait. Defaults to both.
+   *
+   * Set it when the master is too small for the larger step, so the srcSet
+   * never offers a file `npm run images` decided not to write.
+   */
+  widths?: readonly number[];
 }
 
 interface TeamGroup {
@@ -91,9 +98,19 @@ interface TeamGroup {
   members: TeamGroupMember[];
 }
 
-/** Both widths of a portrait, so a phone does not fetch the desktop file. */
-const teamSrcSet = (slug: string) =>
-  `/image/team/${slug}-480.webp 480w, /image/team/${slug}-768.webp 768w`;
+/**
+ * The widths of a portrait that actually exist, so a phone does not fetch the
+ * desktop file and no candidate is a 404.
+ *
+ * `npm run images` skips a width larger than the master rather than upscaling
+ * it, so a portrait supplied at 720px wide has a 480 and no 768. Listing a 768
+ * for those people put a url in the srcSet that does not resolve. It mostly
+ * went unnoticed because at these card sizes the browser picks the 480
+ * candidate anyway, but it is the `src` fallback too, which is what loads when
+ * no candidate matches.
+ */
+const teamSrcSet = (slug: string, widths: readonly number[] = [480, 768]) =>
+  widths.map((w) => `/image/team/${slug}-${w}.webp ${w}w`).join(', ');
 
 const TEAM_GROUPS: TeamGroup[] = [
   {
@@ -124,17 +141,10 @@ const TEAM_GROUPS: TeamGroup[] = [
         slug: 'alen',
         name: 'Alen Peter',
         role: 'Social Media Team',
-        photo: '/image/team/alen-768.webp',
-        /*
-          No inline blur preview for this one yet.
-
-          The others carry a 24px WebP of themselves, generated alongside the
-          portrait by scripts/generate-images.mjs. That script reads
-          assets/source/team, so the preview appears here the moment Alen's
-          photograph is dropped in and `npm run images` is run. Until then the
-          field is omitted rather than filled with somebody else's blur or an
-          invented one, and Photo falls back to its neutral tone.
-        */
+        // Master is 720px wide, so 768 was never generated.
+        photo: '/image/team/alen-480.webp',
+        widths: [480],
+        blur: 'data:image/webp;base64,UklGRhwBAABXRUJQVlA4IBABAACQBQCdASoYAB4APt1eqE0opSQiKA1REBuJbACdMoMulH5TNfWT4c/e6A00Eg2j2SCbIt3aYADKZg44K/S6QUOiWIxjrvGEQla45vqgNNBwMCF4R5cL0J/fhPqH43N2FuTugN/Nj9PU86YPh9wTmmC0f+CTYJoq4bc47VPbtzRJVdPZJ80pWX0lH2f/jBEsNpyzSItZFUviGSIwHd6FUzQlbBccoE538CTb9RzUNtnxboHy0wM7m7T1iSEyaR14wuCtoPNH70wEIkKgMyUTD6AHt5mQdLgGi67loZcpwkgu5JNdPSKRR4rZXBwLuAmc03WulXo4hOwJl79+nZkuD2AmQ4TBFzSa6427Qe6hazAAAA==',
         // Supplied by the team, used as written.
         bio: 'Alen Peter is a constant editor and cinematographer who brings ARTINU\u2019s stories to life. With every reel, he captures moments that connect art, emotion, and people. His creative vision turns simple frames into stories that stay with the heart. Through his work, Alen continues to steal hearts and make ARTINU unforgettable.',
       },
@@ -165,7 +175,9 @@ const TEAM_GROUPS: TeamGroup[] = [
         slug: 'thakarshi',
         name: 'A. Thakarshi Anand',
         role: 'Technical & Development Lead',
-        photo: '/image/team/thakarshi-768.webp',
+        // Master is 576px wide, so 768 was never generated.
+        photo: '/image/team/thakarshi-480.webp',
+        widths: [480],
         blur: 'data:image/webp;base64,UklGRjABAABXRUJQVlA4ICQBAACQBgCdASoYAB4APt1cp06opKMiMBgIARAbiWwAnTMKaQGtFYaKOovfi5U6SEZJ1lEY2QzRg+L0WCiibFSwAP5krH+bGM9O+cPJb6qXMbO7q7NMjvWAp+sXXwgkfEYZ4mqgoU3bP7tLhREVBVWgUU6GO2H9jk+kKQXeaiC6as4VLwO9O6TeTJ/focP8uZ0FI5YMGyY3SWFKA3ARkOYMTprwL71G7IpTmGgpPtKL8ydV0V22PpaQTocM4XN8Te7KmrCLWBZ7Sbq4SeK2vNCYvQuDx0WomwGPtPm3vO7WgyEVOR4dYtPnqTJ6Q3G9QAfAwNjIGuxamrWZBapyEQ2j3QHSNL2e5Tp3OoAY6BdVzUmzE6tWHhz4DocX3IJtULyfNArYAAAA',
         bio: 'Where crazy ideas meet clean execution. I don’t just think outside the box. I redesign the box.',
         // Verified: the page at zeta-black.github.io is headed
@@ -757,7 +769,7 @@ function TeamSection() {
                   <StaggerItem key={member.slug}>
                     <Photo
                       src={member.photo}
-                      srcSet={teamSrcSet(member.slug)}
+                      srcSet={teamSrcSet(member.slug, member.widths)}
                       /* Four across on a desktop, two on a tablet, one on a
                          phone — the widths the srcSet above actually ships. */
                       sizes="(min-width: 1024px) 22vw, (min-width: 640px) 45vw, 90vw"
