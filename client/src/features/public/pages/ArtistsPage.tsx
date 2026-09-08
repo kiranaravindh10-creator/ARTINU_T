@@ -176,8 +176,17 @@ export default function ArtistsPage() {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 className="font-display text-[2rem] leading-tight text-ink">Every artist on ARTINU</h2>
+              {/*
+                No count, and so no loading state either.
+
+                This line led with the roster total, which meant it also had to
+                say "Loading" while the directory arrived, so the first thing
+                under the heading was either a number or the word Loading. It
+                is a standing description of the directory now, true before the
+                request lands and after it.
+              */}
               <p className="mt-2 text-sm text-muted">
-                {directory ? `${directory.total} photographers` : 'Loading…'} across India and beyond.
+                Photographers across India and beyond.
               </p>
             </div>
 

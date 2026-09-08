@@ -344,7 +344,6 @@ function CommunityProof() {
   });
 
   const artists = data?.items ?? [];
-  const total = data?.total ?? 0;
   if (artists.length === 0) return null;
 
   return (
@@ -359,10 +358,16 @@ function CommunityProof() {
           />
         ))}
       </div>
+      {/*
+        No number here either.
+
+        This used to print the roster total once it passed twenty-five, on the
+        theory that a big enough count is persuasive. Which way it reads is
+        decided by the reader, not by us, and a photographer deciding whether to
+        apply is looking at the faces above this line rather than counting them.
+      */}
       <p className="text-xs text-muted">
-        {total >= 25
-          ? `${total} photographers are already part of ARTINU`
-          : 'Join the photographers already showing work through ARTINU'}
+        Join the photographers already showing work through ARTINU
       </p>
     </div>
   );

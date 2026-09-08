@@ -396,16 +396,20 @@ export function GalleryCommunityHero() {
             </ul>
 
             {/*
-              An editorial line, not a metric.
+              An editorial line, and deliberately not a metric.
 
-              The count is real — it is the roster total the artists directory
-              reports — and it is set in prose rather than as a statistic tile so
-              that nine reads as a community rather than as a small number.
+              It used to lead with the roster total. A number here invites the
+              reader to judge the size of it, and a roster that is growing reads
+              smaller than it is on the day somebody looks. The line does the
+              same job without one, and the link goes to the directory where the
+              actual people are.
+
+              The total is still read, purely to decide whether there is anyone
+              to link to at all.
             */}
             {typeof data?.total === 'number' && data.total > 0 && (
               <p className="mt-4 text-xs text-subtle">
-                {data.total} independent {data.total === 1 ? 'photographer' : 'photographers'}{' '}
-                showing with ARTINU.{' '}
+                Independent photographers showing with ARTINU.{' '}
                 <Link to="/artists" className="text-ink underline-offset-4 hover:underline">
                   Meet them
                 </Link>
