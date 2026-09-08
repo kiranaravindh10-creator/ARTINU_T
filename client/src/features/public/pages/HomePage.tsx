@@ -29,7 +29,7 @@ import { catalogService } from '@/services/catalog.service';
 import { cn } from '@/lib/utils';
 import * as React from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { preloadImage, getBlurPlaceholderSync, resizedUpload } from '@/lib/imageOptimization';
+import { preloadImage, resizedUpload } from '@/lib/imageOptimization';
 
 /**
  * Customer quotes come from the database, and only from the database.
@@ -66,181 +66,56 @@ const initialsOf = (name: string) =>
     .join('');
 
 /**
- * The homepage hero photograph.
+ * THE HOMEPAGE CAROUSEL.
  *
- * Local WebP at four widths instead of a remote 1600px JPEG. The old hero was
- * an Unsplash URL, which put a third-party DNS lookup, TLS handshake and CDN
- * fetch in front of the largest element on the page, and served every phone the
- * same 1600px file. A 390px viewport now downloads 35 KB instead.
+ * ── One photograph at a time ────────────────────────────────────────────────
  *
- * `blur` is a 24px inline WebP, so the space is filled on the first frame and
- * the hero never flashes empty.
- */
-const HOME_HERO = {
-  src: '/image/home-hero-cafe-1440.webp',
-  srcSet: [
-    '/image/home-hero-cafe-640.webp 640w',
-    '/image/home-hero-cafe-1024.webp 1024w',
-    '/image/home-hero-cafe-1440.webp 1440w',
-    '/image/home-hero-cafe-1920.webp 1672w',
-  ].join(', '),
-  blur: 'data:image/webp;base64,UklGRrYAAABXRUJQVlA4IKoAAABQBACdASoYAA4APu1iqU2ppaOiMAgBMB2JQBWAMYORXFwZZzT8/KvuSzOAAPaI60mPNbnw5qEMAoTTRua/dGdXlmov457eP3fOp6uvVzCkqMLtWTXoyqb1rxq48uGpjMz/ivgAgltNJ29lFxhBRbYhMaxteqHxiY1/3iiieGIXNTc7imLir9uU4Wq7fCRrtmu4Xn/19phQ/RKbzmgfcSbSe2aQ7kD7PfeAAA==',
-} as const;
-
-/*
-  What a supporting tile is fetched at.
-
-  A tile occupies a strip — 170px to 400px wide on a desktop, half that on a
-  phone. It was being given the `hero` srcset, whose `sizes` is `100vw`, so the
-  browser fetched the 1920px candidate for a box a tenth that wide: four of
-  them per slide, replaced on every advance. That is why tiles were still blank
-  squares seconds after a slide changed.
-
-  640 covers the widest strip on a 2x screen and lands around 40KB. One fixed
-  width rather than a srcset is deliberate — every tile then shares one url per
-  photograph, so the eight files are fetched once for the whole slideshow
-  instead of once per size per slot.
-*/
-const TILE_WIDTH = 640;
-const TILE_QUALITY = 70;
-
-/** The seam between two photographs. Wide enough to read as a join, not a border. */
-const GAP = 2;
-
-/**
- * The homepage slideshow.
+ * This used to draw five at once: the credited photograph in a middle column
+ * with four supporting tiles stacked either side of it. That was built to solve
+ * a real problem, which was that a portrait photograph in a full-bleed
+ * landscape frame either lost most of itself to the crop or left flat colour
+ * beside it. Filling the frame with more photographs solved the flat colour and
+ * the cropping, and it was wrong anyway: a wall of five competing images is a
+ * contact sheet, not a hero, and no single photograph is the subject.
  *
- * The photographs are rows in `hero_slides`, which Console → Homepage has
- * always been able to add to, reorder, credit and hide. How they *played* was
- * not editable at all — the dwell was a `6000` here, the cross-fade a `1.2`
- * beside it, the slow zoom a hardcoded twenty seconds — so "can it hold each
- * photograph a little longer" was a developer task. All of that now comes from
- * `ui_content.homepage_slideshow`, which the same screen writes.
+ * So it is one photograph now, and the crop problem is answered where it should
+ * have been answered in the first place, which is in the selection. The API
+ * sends six LANDSCAPE photographs whose proportions already suit a wide frame,
+ * so there is nothing to letterbox and nothing to cut away. See
+ * services/homepage-carousel.service.ts.
  *
- * The autoplay also used to end permanently the first time anyone touched it:
- * every control called `setIsPlaying(false)` and nothing ever set it back, so
- * one click on the next arrow turned the slideshow into a static image for the
- * rest of the visit. The dwell timer below is keyed on the current index
- * instead, which is what a slideshow should do — stepping through by hand
- * restarts the clock rather than stopping it — and there is now an explicit
- * pause control, which auto-advancing content is required to have and never had.
+ * ── Why the frame is fixed at 3:2 ───────────────────────────────────────────
+ *
+ * A frame that took each photograph's own ratio would fit all six perfectly and
+ * would also change height six times a minute, shoving the whole page up and
+ * down as the carousel advanced. A fixed frame costs a little of each
+ * photograph instead. 3:2 is the classic photographic ratio and the commonest
+ * one in this gallery, and the server only sends ratios between 1.3 and 2.05,
+ * so the loss stays small and nothing is ever badly cut.
+ *
+ * ── What the browser no longer does ─────────────────────────────────────────
+ *
+ * It used to download every slide purely to read `naturalWidth` and work out
+ * what shape it was. The server knows, because `artworks` records the
+ * dimensions, so `width` and `height` arrive with the slide and the browser
+ * measures nothing.
  */
 function PhotographerShowcaseHero() {
   const [currentIndex, setCurrentIndex] = React.useState(0);
-  /** Which way the last move went, so a sliding transition leaves the right way. */
+  /** Which way the last move went, so the transition leaves the right way. */
   const [direction, setDirection] = React.useState(1);
   const [hovered, setHovered] = React.useState(false);
 
   const reduced = useReducedMotion();
 
-  /*
-    Both of these used to be their own request. They now come from the single
-    `/homepage` payload, which is served from localStorage on the first frame
-    for anyone who has been here before — see hooks/useHomepage.ts.
-  */
   const { content, isLoading } = useHomepage();
-  const heroSlides = content.heroSlides;
-  // Settings resolve to a complete object even when nothing has been saved — the
-  // API answers an unset record with the schema defaults — so the hero never
-  // waits on this query before it can play.
+  const slides = content.carousel;
   const settings = content.slideshow ?? DEFAULT_SLIDESHOW_SETTINGS;
 
-  const total = heroSlides?.length ?? 0;
+  const total = slides?.length ?? 0;
   // The list can shrink under us when a manager hides a slide, and the index is
   // held in state — without this the render would reach past the end of it.
   const index = total > 0 ? Math.min(currentIndex, total - 1) : 0;
-
-  // Preload the next few photographs so an advance does not wait on the network.
-  React.useEffect(() => {
-    if (!heroSlides || heroSlides.length === 0) return;
-
-    const urls = [...new Set(heroSlides.slice(0, 3).map((slide) => slide.imageUrl))];
-
-    // Hold the nodes we created and remove those exact nodes on cleanup. The
-    // previous version looked them up again by the un-resolved `url`, while the
-    // dedupe check above it compared against the browser-resolved `link.href` —
-    // so the two never agreed and the hints were left behind on unmount.
-    const added: HTMLLinkElement[] = [];
-    for (const url of urls) {
-      const link = preloadImage(url);
-      if (document.querySelector(`link[rel="preload"][href="${link.href}"]`)) continue;
-      document.head.appendChild(link);
-      added.push(link);
-    }
-
-    return () => added.forEach((link) => link.remove());
-  }, [heroSlides]);
-
-  /*
-    The shape of each photograph, measured once.
-
-    The layout below has to know a photograph's proportions before it can decide
-    how to present it, and nothing in `hero_slides` records that — the row has a
-    url and a credit, not a width.
-
-    Measured from the tile-sized copy, never the original. Asking eight
-    full-resolution files for nothing but their proportions would download tens
-    of megabytes to read two numbers, on the page that is meant to be the
-    fastest on the site. `TILE_WIDTH` is the same url the supporting tiles
-    render, so this fetch is also the tile's fetch: the ratios arrive and the
-    mosaic is already in cache when it is first drawn.
-
-    Until a measurement arrives the slide renders as a single full-frame image —
-    the safe default, and what a landscape photograph gets anyway.
-  */
-  const [ratios, setRatios] = React.useState<Record<string, number>>({});
-
-  React.useEffect(() => {
-    if (!heroSlides || heroSlides.length === 0) return;
-    let live = true;
-
-    for (const slide of heroSlides) {
-      if (ratios[slide.id]) continue;
-      const probe = new Image();
-      probe.onload = () => {
-        if (!live || !probe.naturalWidth || !probe.naturalHeight) return;
-        setRatios((current) =>
-          current[slide.id]
-            ? current
-            : { ...current, [slide.id]: probe.naturalWidth / probe.naturalHeight },
-        );
-      };
-      probe.src = resizedUpload(slide.imageUrl, TILE_WIDTH, TILE_QUALITY);
-    }
-
-    return () => {
-      live = false;
-    };
-    // `ratios` is deliberately absent: including it would re-run the effect on
-    // every measurement and start the whole set again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heroSlides]);
-
-  /*
-    The frame's real size, because the mosaic below is sized from the feature's
-    own aspect ratio and needs to know whether the result leaves room for
-    anything either side of it.
-  */
-  const frameRef = React.useRef<HTMLElement>(null);
-  const [frame, setFrame] = React.useState({ w: 0, h: 0 });
-
-  React.useEffect(() => {
-    const node = frameRef.current;
-    if (!node) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      setFrame((current) =>
-        Math.abs(current.w - width) < 1 && Math.abs(current.h - height) < 1
-          ? current
-          : { w: width, h: height },
-      );
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  /** Taller than it is wide, with a little tolerance so 1:1 counts as neither. */
-  const isPortrait = (id: string) => (ratios[id] ?? 1.5) < 0.95;
 
   const advance = React.useCallback(
     (step: number) => {
@@ -256,16 +131,15 @@ function PhotographerShowcaseHero() {
     setCurrentIndex(next);
   };
 
-  const autoPlaying =
-    settings.autoPlay && total > 1 && !(settings.pauseOnHover && hovered);
+  const autoPlaying = settings.autoPlay && total > 1 && !(settings.pauseOnHover && hovered);
 
   /*
     One timeout per slide rather than one repeating interval.
 
     Because `index` is a dependency, any move — the timer's own, an arrow, a
-    thumbnail — tears this down and starts a fresh full dwell. That is the
-    behaviour you want from a slideshow, and it is why stepping through by hand no
-    longer has to disable autoplay to avoid an immediate jump.
+    hairline — tears this down and starts a fresh full dwell. That is the
+    behaviour you want from a slideshow, and it is why stepping through by hand
+    does not have to stop the autoplay to avoid an immediate jump.
   */
   React.useEffect(() => {
     if (!autoPlaying) return;
@@ -274,495 +148,245 @@ function PhotographerShowcaseHero() {
   }, [autoPlaying, index, settings.intervalMs, advance]);
 
   /*
-    Nothing to show from the database yet — either because the request is still
-    in flight, or because no slides are curated.
+    The next photograph, fetched while this one is up.
 
-    ── Why these two cases now share a branch ──────────────────────────────────
-
-    They used to be separate, and the loading case rendered a full-bleed dark
-    panel with a pulsing gradient and no words. That is defensible when a
-    request takes 200ms. It is not what actually happens here: the API runs on a
-    host that sleeps when idle, so the first visitor after a quiet spell waits
-    tens of seconds — and for all of it the largest element on the site was a
-    black rectangle. That is the "this is really slow" screen.
-
-    The editorial hero below needs nothing from the network. Its photograph is a
-    local WebP that the browser has already been told to preload, so it paints
-    on the first frame, says what ARTINU does and offers somewhere to go. If
-    curated slides then arrive, the slideshow takes over.
-
-    Showing real content immediately and upgrading it beats showing a void and
-    waiting: the visitor can read, decide and click during the seconds the
-    database is still thinking, and on a cold start those are the only seconds
-    most of them will give us.
+    Only the next one. Preloading all six would have the hero competing with
+    itself for bandwidth on first paint, and by the time the sixth is needed it
+    has had five dwells to arrive.
   */
-  if (isLoading || !heroSlides || heroSlides.length === 0) {
-    return (
-      <section className="relative h-[calc(100dvh-4.5rem)] min-h-[34rem] w-full overflow-hidden bg-ink">
-        <Photo
-          src={HOME_HERO.src}
-          alt="Friends in a Bengaluru cafe looking up at a framed ARTINU photograph"
-          priority
-          // Served from our own /image folder as WebP rather than a 1600px
-          // remote JPEG. The hero is the LCP element, and it was waiting on a
-          // third-party DNS lookup, TLS handshake and CDN round trip before a
-          // single pixel could paint. `hero` cannot build a srcSet for a local
-          // file, so the widths are listed explicitly.
-          srcSet={HOME_HERO.srcSet}
-          sizes="100vw"
-          blurPlaceholder={HOME_HERO.blur}
-          className="absolute inset-0 h-full w-full"
-          imgClassName="h-full w-full object-cover"
-        />
-        <div
-          className="absolute inset-0 bg-gradient-to-t from-ink via-ink/70 to-ink/30"
-          aria-hidden
-        />
+  React.useEffect(() => {
+    if (total < 2) return;
+    const next = slides[(index + 1) % total];
+    if (!next) return;
+    const link = preloadImage(resizedUpload(next.imageUrl, 1600, 78));
+    document.head.appendChild(link);
+    return () => link.remove();
+  }, [slides, index, total]);
 
-        <Container className="relative flex h-full flex-col justify-end pb-20 sm:pb-28">
-          <p className="eyebrow text-bronze-light">Photography on rotation</p>
-          {/* Sized down for narrow screens — at 2.75rem the old heading ran off
-              a 390px viewport. */}
-          <Typewriter
-            as="h1"
-            className="mt-5 max-w-[18ch] font-display text-[2rem] leading-[1.06] text-canvas sm:text-[3rem] lg:text-[3.75rem]"
-            caretClassName="border-l-bronze-light"
-          >
-            Art that changes with your space.
-          </Typewriter>
-          <p className="mt-5 max-w-md text-sm leading-relaxed text-canvas/70 sm:text-base">
-            We read the room, print and frame photography made for it, and swap it for new
-            work every few months.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Button shape="pill" size="lg" variant="light" asChild>
-              <Link to="/lets-talk">
-                Book a consultation <ArrowRight />
-              </Link>
-            </Button>
-            <Link
-              to="/gallery"
-              className="text-sm text-canvas/80 underline decoration-canvas/30 underline-offset-4 transition-colors hover:text-canvas"
-            >
-              Browse the gallery
-            </Link>
-          </div>
-        </Container>
-      </section>
-    );
+  // Left and right arrows move the carousel when it has focus, which is what a
+  // keyboard user expects of anything calling itself a carousel.
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      advance(-1);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      advance(1);
+    }
+  };
+
+  /*
+    Swipe, without a gesture library.
+
+    A pointer that travels more than 48px horizontally is a swipe; anything less
+    is a tap or a scroll. Vertical movement is left alone so the page still
+    scrolls normally with a finger on the photograph.
+  */
+  const swipeFrom = React.useRef<{ x: number; y: number } | null>(null);
+  const onPointerDown = (e: React.PointerEvent) => {
+    swipeFrom.current = { x: e.clientX, y: e.clientY };
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    const from = swipeFrom.current;
+    swipeFrom.current = null;
+    if (!from) return;
+    const dx = e.clientX - from.x;
+    const dy = e.clientY - from.y;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) advance(dx < 0 ? 1 : -1);
+  };
+
+  /*
+    Nothing at all until there is something real to show.
+
+    The homepage payload is served from localStorage on a repeat visit, so this
+    is only ever the very first load. A skeleton the height of the hero would be
+    a grey slab in the most important frame on the site.
+  */
+  if (isLoading || total === 0) {
+    return <section className="h-[60vh] min-h-[24rem] w-full bg-ink" aria-hidden />;
   }
 
-  const currentSlide = heroSlides[index];
+  const slide = slides[index];
   const isFirstSlide = index === 0;
-  const heroSrc = currentSlide.imageUrl;
-  const heroBlurPlaceholder = getBlurPlaceholderSync(heroSrc);
+  const credit = slide.photographerName
+    ? `Photograph by ${slide.photographerName}`
+    : 'A photograph from the ARTINU collection';
 
-  const single = total < 2;
-
-  /*
-    The photograph fills the frame, and everything else sits on top of it.
-
-    It used to be split: the image took 78% of the height and a solid strip
-    underneath held thumbnails, a pause button, two arrows, a slide counter and
-    a caption. On a photography site that meant the photograph — the only thing
-    anyone came for — was permanently boxed into three-quarters of the screen so
-    a row of widgets could have the rest.
-
-    What is left is the credit, bottom left, and the queue of upcoming
-    photographs, bottom right, both floating over the image. The arrows, the
-    pause control, the counter and the caption are gone: the thumbnails already
-    navigate, and autoplay pauses on hover.
-  */
-  const showThumbnails = settings.showThumbnails && !single;
-
-  /*
-    ── THE FRAME IS FILLED WITH PHOTOGRAPHS, OR IT IS FILLED WITH ONE ────────
-
-    Contain stopped the cropping and left a wide frame two-thirds empty. Filling
-    that with a blurred copy of the photograph did not work: blur far enough to
-    sit behind a print and a sky averages out to one tone, so it arrived as a
-    grey slab with pictures floating on it — a slide, not a wall.
-
-    So nothing behind them. The feature's column is sized from the photograph's
-    own aspect ratio, which means it fits exactly, uncropped, edge to edge top
-    and bottom. Whatever width is left either side is filled with more of the
-    collection, and the frame ends up entirely photographic — there is no
-    surround to look flat because there is no surround.
-
-    Supporting tiles are cover-fitted. They are a mosaic, not the work being
-    credited, and each of them is the uncropped feature on its own slide.
-  */
-  const featureRatio = ratios[currentSlide.id] ?? 0;
-
-  /** What the photograph would measure at the frame's full height, and full width. */
-  const featureWidth = frame.h * featureRatio;
-  const featureHeight = featureRatio > 0 ? frame.w / featureRatio : 0;
-
-  /*
-    Which way the leftover space runs.
-
-    A photograph narrower than the frame leaves margins either side, so the
-    mosaic is columns. One shorter than the frame — a landscape on a phone —
-    leaves bands above and below, so it is rows. Either way the feature is
-    sized from its own ratio and fits exactly, and the leftover is filled with
-    photographs rather than with anything.
-
-    The 0.82 is the point below which the leftover strips become slivers; past
-    it the photograph is close enough to the frame's shape that covering it
-    costs a sliver of edge rather than the composition.
-  */
-  const measured = frame.w > 0 && featureRatio > 0;
-  const layout: 'columns' | 'rows' | 'single' = !measured
-    ? 'single'
-    : featureWidth <= frame.w * 0.82 && total >= 5
-      ? 'columns'
-      : featureHeight <= frame.h * 0.82 && total >= 5
-        ? 'rows'
-        : 'single';
-
-  /*
-    How much of the frame the supporting tiles take on each side.
-
-    The credit is positioned against this. In the mosaic the bottom-left of the
-    frame is a supporting tile by somebody else, so a credit sitting there names
-    one photographer over another photographer's work — on a site whose whole
-    purpose is attributing photographs, that is the worst kind of small bug.
-    Inset by the strip and the name sits on the picture it belongs to.
-  */
-  const stripSize =
-    layout === 'columns'
-      ? (frame.w - featureWidth - GAP * 2) / 2
-      : layout === 'rows'
-        ? (frame.h - featureHeight - GAP * 2) / 2
-        : 0;
-
-  /** Four supporting photographs, walking forward so the wall changes as it advances. */
-  const tiles = (() => {
-    if (layout === 'single') return [];
-    const others = heroSlides.filter((_, i) => i !== index);
-    return [0, 1, 2, 3].map((offset) => others[(index + offset) % others.length]);
-  })();
-
-
-  // Sliding is a motion effect, so a reader who asked for less motion gets the
-  // plain swap. Ken Burns goes for the same reason.
   const sliding = settings.transition === 'slide' && !reduced;
   const kenBurns = settings.kenBurns && !reduced;
   const transitionSeconds = reduced ? 0.01 : settings.transitionMs / 1000;
 
-  /*
-    A drift across the whole time the slide is up, not a pop on arrival.
-
-    The scale had no entry in the transition below, so it fell through to
-    framer's default — about a third of a second. A slow zoom that finishes
-    before the viewer has looked at the picture is just a jolt; tying it to the
-    dwell is what makes it read as movement rather than as a transition.
-  */
-  const kenBurnsTransition = { duration: settings.intervalMs / 1000, ease: 'linear' } as const;
-
   return (
     <section
-      ref={frameRef}
-      className="relative h-[calc(100dvh-4.5rem)] min-h-[34rem] w-full select-none overflow-hidden bg-ink"
+      className="relative w-full select-none overflow-hidden bg-ink"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      tabIndex={0}
       aria-roledescription="carousel"
       aria-label="Featured photographs"
     >
-      <AnimatePresence>
-        <motion.div
-          key={`bg-${currentSlide.id}`}
-          initial={{ opacity: 0, x: sliding ? direction * 64 : 0 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: sliding ? direction * -64 : 0 }}
-          transition={{
-            opacity: { duration: transitionSeconds, ease: 'easeInOut' },
-            x: { duration: transitionSeconds, ease: EASE },
-          }}
-          className="absolute inset-0 origin-center"
-        >
-          {/*
-            What is behind the photographs for the moment before they arrive.
+      {/*
+        The frame.
 
-            The mosaic covers every pixel of this once it has loaded, so it is
-            only ever seen during a decode — but that is exactly the moment the
-            frame would otherwise be a flat rectangle, which is the one thing
-            this hero must never show.
-
-            So it is a 32px copy of the slide itself, about a kilobyte, blown up
-            and soft. `getBlurPlaceholderSync` was the obvious thing to use here
-            and is the wrong one: it only has previews for photographs shipped
-            with the site, and returns a neutral swatch for everything from
-            Supabase — which is all eight of these. It would have put a flat
-            colour behind the hero while claiming to be a preview of the
-            picture.
-
-            The blurred backdrop, the vignette and the grain that used to sit
-            here are gone with the empty space they were dressing. Nothing shows
-            behind the photographs any more, and each of them cost a second
-            decode of a full-size image.
-          */}
-          <div
-            className="absolute inset-0 scale-105 blur-xl"
-            aria-hidden
-            style={{
-              backgroundImage: `url(${resizedUpload(currentSlide.imageUrl, 32, 40)})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
+        4:3 on a phone, where a 3:2 would leave the photograph a thin band above
+        the fold, and 3:2 from tablet up. The viewport cap stops a tall desktop
+        window turning the hero into something you have to scroll past before
+        you see anything else on the page.
+      */}
+      <div className="relative aspect-[4/3] max-h-[calc(100dvh-4.5rem)] w-full sm:aspect-[3/2]">
+        <AnimatePresence initial={false}>
+          <motion.div
+            key={slide.id}
+            className="absolute inset-0"
+            initial={{ opacity: 0, x: sliding ? direction * 48 : 0 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: sliding ? direction * -48 : 0 }}
+            transition={{
+              opacity: { duration: transitionSeconds, ease: 'easeInOut' },
+              x: { duration: transitionSeconds, ease: EASE },
             }}
-          />
+          >
+            {/*
+              The slow zoom sits on the photograph itself and runs the length of
+              the dwell. Given its own element rather than the layer above, so
+              the cross-fade and the zoom cannot fight over one transform.
+            */}
+            <motion.div
+              className="absolute inset-0 origin-center"
+              initial={{ scale: 1 }}
+              animate={{ scale: kenBurns ? 1.05 : 1 }}
+              transition={{ duration: settings.intervalMs / 1000, ease: 'linear' }}
+            >
+              <Photo
+                src={slide.imageUrl}
+                alt={credit}
+                hero
+                priority={isFirstSlide}
+                tone="bg-transparent"
+                className="absolute inset-0 h-full w-full"
+                imgClassName="h-full w-full object-cover object-center"
+              />
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
 
-          <div className="absolute inset-0">
-            {layout === 'single' ? (
-              /*
-                One photograph, filling the frame. Reached when it is already
-                close enough to the frame's shape that covering it costs a
-                sliver of edge rather than the composition — so the slow zoom
-                belongs here, where an edge is being given up anyway.
-              */
-              <motion.div
-                className="absolute inset-0 origin-center"
-                initial={{ scale: 1 }}
-                animate={{ scale: kenBurns ? 1.06 : 1 }}
-                transition={kenBurnsTransition}
-              >
-                <Photo
-                  src={heroSrc}
-                  alt={
-                    currentSlide.photographerName
-                      ? `Photograph by ${currentSlide.photographerName}`
-                      : 'A photograph from the ARTINU collection'
-                  }
-                  hero
-                  priority={isFirstSlide}
-                  blurPlaceholder={heroBlurPlaceholder}
-                  tone="bg-transparent"
-                  className="absolute inset-0 h-full w-full"
-                  imgClassName="h-full w-full object-cover object-center"
-                />
-              </motion.div>
-            ) : (
-              /*
-                A stack, the photograph, a stack — running across on a wide
-                frame and down on a tall one.
+        {/*
+          Just enough shadow along the bottom edge to hold white text over an
+          unpredictable photograph. No wash across the middle of the image, and
+          no panel behind the name — the photograph is the point.
+        */}
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 hidden h-1/2 bg-gradient-to-t from-ink/85 via-ink/30 to-transparent sm:block"
+          aria-hidden
+        />
 
-                The feature's track is a measured pixel width, not `auto` with
-                an aspect-ratio child. That version asks the browser to size a
-                track from an item whose height depends on the track it is in,
-                which is the circular case in grid sizing and resolves
-                differently depending on the engine. The frame is already
-                measured here, and the photograph's ratio with it, so the exact
-                number is known: at the frame's full height the picture is
-                `frame.h * ratio` wide, and that is the track. It fits to the
-                pixel, top and bottom, with nothing cut.
+        {/* Which photograph is showing, announced once rather than on every frame. */}
+        <p className="sr-only" aria-live="polite" aria-atomic>
+          {`Photograph ${index + 1} of ${total}`}
+          {slide.photographerName ? ` by ${slide.photographerName}` : ''}
+        </p>
 
-                The two `1fr` tracks take everything left over, which is why no
-                part of the frame is ever bare.
-
-                The 2px gaps are the only non-photographic pixels on screen, and
-                they read as the join between prints rather than as a colour.
-              */
-              <div
-                className="grid h-full w-full gap-[2px]"
-                style={
-                  layout === 'columns'
-                    ? { gridTemplateColumns: `1fr ${featureWidth}px 1fr` }
-                    : { gridTemplateRows: `1fr ${featureHeight}px 1fr` }
-                }
-              >
-                {/*
-                  The slow zoom lives on the supporting tiles, not on the frame.
-
-                  It used to scale this whole layer, which meant it scaled the
-                  credited photograph too — 1.06 of a picture sized to fit
-                  exactly is a picture with 3% cut off every edge, so the one
-                  image the layout exists to show whole was the one being
-                  trimmed. Measured in the browser: a 1103x828 feature rendered
-                  1169x878 and overflowed the frame.
-
-                  On the tiles it costs nothing, because they are cover-fitted
-                  and already showing a crop. The wall drifts; the work does not.
-                */}
-                <motion.div
-                  className={cn(
-                    'grid gap-[2px] overflow-hidden',
-                    layout === 'columns' ? 'h-full grid-rows-2' : 'w-full grid-cols-2',
-                  )}
-                  initial={{ scale: 1 }}
-                  animate={{ scale: kenBurns ? 1.08 : 1 }}
-                  transition={kenBurnsTransition}
-                >
-                  {tiles.slice(0, 2).map((slide, i) => (
-                    <Photo
-                      key={`a-${slide.id}-${i}`}
-                      src={resizedUpload(slide.imageUrl, TILE_WIDTH, TILE_QUALITY)}
-                      alt=""
-                      tone="bg-transparent"
-                      className="h-full w-full"
-                      imgClassName="h-full w-full object-cover object-center"
-                    />
-                  ))}
-                </motion.div>
-
-                {/*
-                  The photograph being credited, whole and still.
-
-                  `sizes` is the real width in pixels rather than the `100vw`
-                  the hero srcset assumes. In the mosaic this track is a
-                  fraction of the viewport, and 100vw made the browser fetch the
-                  1920 candidate for a column half that wide.
-                */}
-                <div className="h-full w-full overflow-hidden">
-                  <Photo
-                    src={heroSrc}
-                    alt={
-                      currentSlide.photographerName
-                        ? `Photograph by ${currentSlide.photographerName}`
-                        : 'A photograph from the ARTINU collection'
-                    }
-                    hero
-                    sizes={`${Math.round(layout === 'columns' ? featureWidth : frame.w)}px`}
-                    priority={isFirstSlide}
-                    tone="bg-transparent"
-                    className="h-full w-full"
-                    imgClassName="h-full w-full object-cover object-center"
-                  />
-                </div>
-
-                <motion.div
-                  className={cn(
-                    'grid gap-[2px] overflow-hidden',
-                    layout === 'columns' ? 'h-full grid-rows-2' : 'w-full grid-cols-2',
-                  )}
-                  initial={{ scale: 1 }}
-                  animate={{ scale: kenBurns ? 1.08 : 1 }}
-                  transition={kenBurnsTransition}
-                >
-                  {tiles.slice(2, 4).map((slide, i) => (
-                    <Photo
-                      key={`b-${slide.id}-${i}`}
-                      src={resizedUpload(slide.imageUrl, TILE_WIDTH, TILE_QUALITY)}
-                      alt=""
-                      tone="bg-transparent"
-                      className="h-full w-full"
-                      imgClassName="h-full w-full object-cover object-center"
-                    />
-                  ))}
-                </motion.div>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Just enough shadow along the bottom edge to hold white text over an
-          unpredictable photograph. No wash across the middle of the image. */}
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-2/5 bg-gradient-to-t from-ink/80 via-ink/25 to-transparent"
-        aria-hidden
-      />
+      </div>
 
       {/*
-        Which photograph is showing, announced once rather than on every frame.
+        The credit.
+
+        Under the photograph on a phone, over it from tablet up.
+
+        Overlaid at every size it was unreadable on mobile: a 4:3 frame on a
+        393px screen is 295px tall, and a name, a location, a title, two arrows
+        and six hairlines laid over the middle of that left the photograph as a
+        dark strip behind text. Below the frame the type gets its own space on
+        the ink the section already sits on, the arrows stop covering the
+        picture, and nothing has to be cropped harder to make room.
       */}
-      <p className="sr-only" aria-live="polite" aria-atomic>
-        {`Photograph ${index + 1} of ${total}`}
-        {currentSlide.photographerName ? ` by ${currentSlide.photographerName}` : ''}
-      </p>
-
-      <Container
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-20 pb-8 sm:pb-10"
-        style={layout === 'rows' ? { paddingBottom: stripSize + 24 } : undefined}
-      >
-        {/*
-          Stacked below 1024px, one line above it.
-
-          Side by side, the credit gets whatever is left after the thumbnail
-          strip — about 150px on a phone and 170px on a tablet, which truncated
-          most place names to "BANGALORE URBAN,…". It only has room once the
-          frame is wide enough that the feature does not push the credit inward
-          and the strip does not pull it back: measured, that is 1024px. Below
-          it the name takes its own line and is never cut, and the strip sits
-          left, clear of the assistant button in the corner.
-        */}
-        <div className="flex flex-col items-start gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-6">
-          {/* Bottom left — who took it, and where they work. */}
-          <div
-            className="min-w-0 max-w-full"
-            style={layout === 'columns' ? { paddingLeft: stripSize } : undefined}
-          >
-            {currentSlide.photographerName ? (
-              <>
-                <p className="truncate font-display text-xl leading-tight text-canvas sm:text-2xl">
-                  {currentSlide.photographerName}
+      <Container className="relative z-20 bg-ink pb-7 pt-5 sm:pointer-events-none sm:absolute sm:inset-x-0 sm:bottom-0 sm:bg-transparent sm:pb-10 sm:pt-0">
+          <div className="flex items-end justify-between gap-6">
+            {/* ── Bottom left: whose photograph this is. ─────────────────── */}
+            <div className="min-w-0 max-w-full">
+              {slide.title ? (
+                <p className="mb-1.5 truncate font-label text-[0.625rem] uppercase tracking-[0.18em] text-canvas/55">
+                  {slide.title}
                 </p>
-                {currentSlide.photographerLocation ? (
-                  <p className="mt-1 truncate font-label text-[0.6875rem] uppercase tracking-[0.16em] text-canvas/60">
-                    {currentSlide.photographerLocation}
+              ) : null}
+
+              {slide.photographerName ? (
+                <>
+                  <p className="truncate font-display text-2xl leading-tight text-canvas sm:text-3xl">
+                    {slide.photographerName}
                   </p>
-                ) : null}
-              </>
-            ) : (
-              <span />
-            )}
+                  {slide.photographerLocation ? (
+                    <p className="mt-1 truncate font-label text-[0.6875rem] uppercase tracking-[0.16em] text-canvas/60">
+                      {slide.photographerLocation}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <span />
+              )}
+            </div>
+
+            {/* ── Bottom right: move, and where you are. ─────────────────── */}
+            <div className="pointer-events-auto flex shrink-0 items-center gap-2 sm:gap-3">
+              <span className="hidden font-label text-[0.6875rem] tabular-nums tracking-[0.16em] text-canvas/60 sm:inline">
+                {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => advance(-1)}
+                aria-label="Previous photograph"
+                className="flex size-10 items-center justify-center rounded-full border border-canvas/25 text-canvas/80 transition-colors hover:border-canvas/60 hover:text-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas/70"
+              >
+                <ArrowLeft className="size-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={() => advance(1)}
+                aria-label="Next photograph"
+                className="flex size-10 items-center justify-center rounded-full border border-canvas/25 text-canvas/80 transition-colors hover:border-canvas/60 hover:text-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas/70"
+              >
+                <ArrowRight className="size-4" aria-hidden />
+              </button>
+            </div>
           </div>
 
           {/*
-            Bottom right — the next few photographs, small and mostly out of the
-            way. These are the only control: clicking one goes to it, and
-            autoplay already pauses while the pointer is over the hero.
+            Position, as six hairlines rather than dots.
+
+            Quieter than a dot row, and it reads as a progress bar, which is
+            what it is. Each one is a target in its own right, so a visitor can
+            jump straight to a photograph.
           */}
-          {showThumbnails && (
-            /*
-              The right margin keeps the strip clear of the assistant button,
-              which is fixed to the bottom-right corner of every page and was
-              sitting on top of the last thumbnail.
-            */
-            <div className="pointer-events-auto flex shrink-0 items-center gap-2 lg:mr-36 lg:self-auto">
-              {heroSlides.map((slide, i) => {
-                let offset = i - index;
-                if (offset > total / 2) offset -= total;
-                if (offset < -total / 2) offset += total;
-
-                // The current photograph and the next three, so the strip reads
-                // as a queue rather than as a full contact sheet.
-                if (offset < 0 || offset > 3) return null;
-
-                const isActive = offset === 0;
-
-                return (
-                  <button
-                    key={slide.id}
-                    onClick={() => goTo(i)}
-                    aria-label={`Show photograph ${i + 1} of ${total}`}
-                    aria-current={isActive}
-                    className={cn(
-                      'h-9 w-12 shrink-0 overflow-hidden rounded-[3px] transition-all duration-300 sm:h-11 sm:w-16',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas/70',
-                      isActive
-                        ? 'opacity-100 ring-1 ring-canvas/70'
-                        : 'opacity-40 hover:opacity-75',
-                    )}
-                  >
-                    <Photo
-                      src={slide.imageUrl}
-                      alt=""
-                      aria-hidden
-                      thumbnail
-                      tone="bg-transparent"
-                      className="h-full w-full"
-                      imgClassName="h-full w-full object-cover"
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+          <div className="pointer-events-auto mt-5 flex items-center gap-1.5">
+            {slides.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => goTo(i)}
+                aria-label={`Show photograph ${i + 1} of ${total}`}
+                aria-current={i === index}
+                className="group h-4 flex-1 focus-visible:outline-none"
+              >
+                <span
+                  className={cn(
+                    'block h-px w-full transition-all duration-500',
+                    i === index
+                      ? 'bg-canvas'
+                      : 'bg-canvas/25 group-hover:bg-canvas/60 group-focus-visible:bg-canvas/60',
+                  )}
+                />
+              </button>
+            ))}
+          </div>
       </Container>
     </section>
   );
 }
+
 
 function SpacesWeTransform() {
   /*

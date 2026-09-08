@@ -74,8 +74,15 @@ const TEAM: TeamMember[] = [
 interface TeamGroupMember extends TeamMember {
   /** Slug under /image/team, used to build the srcSet. */
   slug: string;
-  /** Inline 24px WebP preview. */
-  blur: string;
+  /**
+   * Inline 24px WebP preview.
+   *
+   * Optional, because it is generated from the portrait by
+   * scripts/generate-images.mjs — a member added before their photograph has
+   * been through that script has no preview to show, and inventing one or
+   * borrowing a colleague's would be worse than going without.
+   */
+  blur?: string;
   portfolio?: string;
 }
 
@@ -112,6 +119,24 @@ const TEAM_GROUPS: TeamGroup[] = [
         // Verified: the page is headed "Meet Sanskrithi — Business Developer,
         // Bengaluru". Supplied by her after the first two portfolios went up.
         portfolio: 'https://sanskrithiraikote.framer.website/',
+      },
+      {
+        slug: 'alen',
+        name: 'Alen Peter',
+        role: 'Social Media Team',
+        photo: '/image/team/alen-768.webp',
+        /*
+          No inline blur preview for this one yet.
+
+          The others carry a 24px WebP of themselves, generated alongside the
+          portrait by scripts/generate-images.mjs. That script reads
+          assets/source/team, so the preview appears here the moment Alen's
+          photograph is dropped in and `npm run images` is run. Until then the
+          field is omitted rather than filled with somebody else's blur or an
+          invented one, and Photo falls back to its neutral tone.
+        */
+        // Supplied by the team, used as written.
+        bio: 'Alen Peter is a constant editor and cinematographer who brings ARTINU\u2019s stories to life. With every reel, he captures moments that connect art, emotion, and people. His creative vision turns simple frames into stories that stay with the heart. Through his work, Alen continues to steal hearts and make ARTINU unforgettable.',
       },
     ],
   },

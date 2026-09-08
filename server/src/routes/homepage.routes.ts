@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { db } from '@/database/db';
 import { asyncHandler, cachePublic } from '@/middleware/index';
 import { withPhotographerNames } from '@/routes/contentManager.routes';
+import { carouselArtworks, selectCarousel } from '@/services/homepage-carousel.service';
 
 /**
  * THE WHOLE HOMEPAGE, IN ONE REQUEST.
@@ -68,7 +69,7 @@ homepageRouter.get(
       Postgres to answer one round trip from the browser — reproducing on the
       server the exact problem this endpoint removes from the client.
     */
-    const [slides, cafes, collections, testimonials, slideshow] = await Promise.all([
+    const [slides, cafes, collections, testimonials, slideshow, artworks] = await Promise.all([
       db.heroSlides.find({ where: { isActive: true }, orderBy: { field: 'order', direction: 'asc' } }),
       db.cafes.find({ where: { isActive: true }, orderBy: { field: 'order', direction: 'asc' } }),
       db.featuredCollections.find({
@@ -77,12 +78,29 @@ homepageRouter.get(
       }),
       db.uiContent.byId(TESTIMONIALS_ID),
       db.uiContent.byId(SLIDESHOW_ID),
+      /*
+        The gallery, for the carousel's shape data.
+
+        `hero_slides` records no width or height, so the only way to know
+        whether a photograph is landscape is to look it up here. Read in the
+        same batch as everything else, so it costs no extra round trip.
+      */
+      carouselArtworks(),
     ]);
 
     res.json({
       // Same shape the carousel already expects, names resolved server-side in
       // one query rather than left as raw uuids.
       heroSlides: await withPhotographerNames(slides),
+      /*
+        The six landscape photographs the hero opens with.
+
+        Kept beside `heroSlides` rather than replacing it: the Console's content
+        manager still reads and writes that list, and it is still what a manager
+        curates. This is the resolved, landscape-only view of it, topped up from
+        the gallery — see services/homepage-carousel.service.ts.
+      */
+      carousel: await selectCarousel(slides, artworks),
       cafes,
       featuredCollections: collections,
       /*

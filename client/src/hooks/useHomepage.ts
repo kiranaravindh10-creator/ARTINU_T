@@ -37,8 +37,31 @@ import { api } from '@/lib/api';
  * thing anyone sees.
  */
 
+/**
+ * One photograph in the hero carousel, already resolved by the API.
+ *
+ * The browser used to work this out for itself: it downloaded every slide just
+ * to read `naturalWidth` and decide what shape it was. The server knows,
+ * because `artworks` records the dimensions, so it decides and sends six
+ * landscape photographs with their credits attached.
+ */
+export interface CarouselSlide {
+  id: string;
+  imageUrl: string;
+  width: number;
+  height: number;
+  title: string | null;
+  photographerId: string | null;
+  photographerName: string | null;
+  photographerLocation: string | null;
+  /** True when a manager chose this one in Console, rather than the gallery top-up. */
+  curated: boolean;
+}
+
 export interface HomepageContent {
   heroSlides: (HeroSlide & { photographerName: string | null; photographerLocation: string | null })[];
+  /** The hero. Six landscape photographs, chosen server-side. */
+  carousel: CarouselSlide[];
   cafes: Cafe[];
   featuredCollections: FeaturedCollection[];
   testimonials: { quote: string; name: string; role?: string; location?: string }[];
@@ -50,6 +73,7 @@ const STORAGE_KEY = 'artinu.homepage.v1';
 /** Everything empty — what a genuine first-time visitor renders before the fetch. */
 const EMPTY: HomepageContent = {
   heroSlides: [],
+  carousel: [],
   cafes: [],
   featuredCollections: [],
   testimonials: [],
